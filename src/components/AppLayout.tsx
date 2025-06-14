@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,7 +21,7 @@ import {
   Settings, 
   LogOut,
   User,
-  FileTemplate,
+  FileText,
 } from 'lucide-react';
 
 interface AppLayoutProps {
@@ -48,7 +47,7 @@ const AppLayout = ({ children }: AppLayoutProps) => {
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Projects', href: '/projects', icon: FolderOpen },
-    { name: 'Templates', href: '/templates', icon: FileTemplate },
+    { name: 'Templates', href: '/templates', icon: FileText },
   ];
 
   const getInitials = (name: string) => {
