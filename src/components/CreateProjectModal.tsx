@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,7 +17,7 @@ import {
 import { Loader2, ArrowLeft, ArrowRight } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import TemplateSelectionModal from './TemplateSelectionModal';
-import { ProjectTemplate, useTemplates } from '@/hooks/useTemplates';
+import { ProjectTemplate, TemplateFeature, useTemplates } from '@/hooks/useTemplates';
 
 interface CreateProjectModalProps {
   isOpen: boolean;
@@ -238,7 +237,7 @@ const CreateProjectModal = ({ isOpen, onClose, onSuccess }: CreateProjectModalPr
                           Using Template: {selectedTemplate.name}
                         </p>
                         <p className="text-xs text-blue-700">
-                          {selectedTemplate.features.length} features will be added
+                          {Array.isArray(selectedTemplate.features) ? (selectedTemplate.features as TemplateFeature[]).length : 0} features will be added
                         </p>
                       </div>
                       <Button

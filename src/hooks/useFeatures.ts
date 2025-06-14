@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 
 export interface Feature {
   id: string;
@@ -13,7 +14,7 @@ export interface Feature {
   complexity: string | null;
   parent_id: string | null;
   order_index: number | null;
-  metadata: Record<string, any> | null;
+  metadata: Json | null;
   created_at: string | null;
   updated_at: string | null;
 }

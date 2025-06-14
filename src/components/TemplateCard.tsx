@@ -2,7 +2,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ProjectTemplate } from '@/hooks/useTemplates';
+import { ProjectTemplate, TemplateFeature } from '@/hooks/useTemplates';
 import { Layers, CheckCircle } from 'lucide-react';
 
 interface TemplateCardProps {
@@ -33,6 +33,9 @@ const TemplateCard = ({ template, onSelect }: TemplateCardProps) => {
     return colors[category as keyof typeof colors] || 'bg-gray-100 text-gray-800';
   };
 
+  // Safely parse features from JSON
+  const features = Array.isArray(template.features) ? template.features as TemplateFeature[] : [];
+
   return (
     <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer group">
       <CardHeader className="pb-3">
@@ -47,7 +50,7 @@ const TemplateCard = ({ template, onSelect }: TemplateCardProps) => {
               </Badge>
               <Badge variant="outline" className="text-xs">
                 <Layers className="w-3 h-3 mr-1" />
-                {template.features.length} features
+                {features.length} features
               </Badge>
             </div>
           </div>
@@ -62,15 +65,15 @@ const TemplateCard = ({ template, onSelect }: TemplateCardProps) => {
         <div className="space-y-2 mb-4">
           <p className="text-xs font-medium text-gray-700">Included Features:</p>
           <div className="space-y-1 max-h-24 overflow-y-auto">
-            {template.features.slice(0, 4).map((feature, index) => (
+            {features.slice(0, 4).map((feature, index) => (
               <div key={index} className="flex items-center text-xs text-gray-600">
                 <CheckCircle className="w-3 h-3 mr-2 text-green-500 flex-shrink-0" />
                 <span className="truncate">{feature.title}</span>
               </div>
             ))}
-            {template.features.length > 4 && (
+            {features.length > 4 && (
               <p className="text-xs text-gray-500 italic">
-                +{template.features.length - 4} more features
+                +{features.length - 4} more features
               </p>
             )}
           </div>

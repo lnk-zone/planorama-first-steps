@@ -1,13 +1,14 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 
 export interface ProjectTemplate {
   id: string;
   name: string;
   description: string | null;
   category: string;
-  features: TemplateFeature[];
+  features: Json;
   is_public: boolean | null;
   created_by: string | null;
   created_at: string | null;
@@ -39,8 +40,11 @@ export const useTemplates = () => {
     const template = templates.find(t => t.id === templateId);
     if (!template) throw new Error('Template not found');
 
+    // Parse features from JSON and type cast
+    const features = Array.isArray(template.features) ? template.features as TemplateFeature[] : [];
+
     // Create features from template
-    const featurePromises = template.features.map((feature, index) =>
+    const featurePromises = features.map((feature, index) =>
       supabase
         .from('features')
         .insert([{
