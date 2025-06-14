@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import AppLayout from '@/components/AppLayout';
 import CreateProjectModal from '@/components/CreateProjectModal';
@@ -40,6 +41,7 @@ interface Project {
 
 const Projects = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -72,6 +74,16 @@ const Projects = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleViewProject = (projectId: string) => {
+    navigate(`/projects/${projectId}`);
+  };
+
+  const handleEditProject = (projectId: string) => {
+    // For now, navigate to project detail page
+    // In the future, this could open an edit modal
+    navigate(`/projects/${projectId}`);
   };
 
   const handleDeleteProject = async (projectId: string, projectTitle: string) => {
@@ -254,11 +266,11 @@ const Projects = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleViewProject(project.id)}>
                           <Eye className="mr-2 h-4 w-4" />
                           View Details
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEditProject(project.id)}>
                           <Edit className="mr-2 h-4 w-4" />
                           Edit Project
                         </DropdownMenuItem>
