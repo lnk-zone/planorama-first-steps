@@ -9,6 +9,69 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      features: {
+        Row: {
+          category: string | null
+          complexity: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          metadata: Json | null
+          order_index: number | null
+          parent_id: string | null
+          priority: string | null
+          project_id: string
+          status: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string | null
+          complexity?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          order_index?: number | null
+          parent_id?: string | null
+          priority?: string | null
+          project_id: string
+          status?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string | null
+          complexity?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          order_index?: number | null
+          parent_id?: string | null
+          priority?: string | null
+          project_id?: string
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "features_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "features"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "features_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mindmaps: {
         Row: {
           created_at: string | null
@@ -43,6 +106,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      project_templates: {
+        Row: {
+          category: string
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          features: Json
+          id: string
+          is_public: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          features?: Json
+          id?: string
+          is_public?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          features?: Json
+          id?: string
+          is_public?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       projects: {
         Row: {
@@ -109,6 +208,53 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      user_stories: {
+        Row: {
+          acceptance_criteria: string[] | null
+          created_at: string | null
+          description: string | null
+          feature_id: string
+          id: string
+          priority: string | null
+          status: string | null
+          story_points: number | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          acceptance_criteria?: string[] | null
+          created_at?: string | null
+          description?: string | null
+          feature_id: string
+          id?: string
+          priority?: string | null
+          status?: string | null
+          story_points?: number | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          acceptance_criteria?: string[] | null
+          created_at?: string | null
+          description?: string | null
+          feature_id?: string
+          id?: string
+          priority?: string | null
+          status?: string | null
+          story_points?: number | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_stories_feature_id_fkey"
+            columns: ["feature_id"]
+            isOneToOne: false
+            referencedRelation: "features"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
