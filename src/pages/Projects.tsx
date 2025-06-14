@@ -1,40 +1,17 @@
-
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import AppLayout from '@/components/AppLayout';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { 
-  Plus, 
-  Search, 
-  FolderOpen, 
-  MoreVertical, 
-  Edit, 
-  Trash2, 
-  Eye,
-  Calendar,
-  Filter,
-  Code,
-  Smartphone,
-  Monitor,
-  Server,
-  Cloud,
-  HelpCircle
-} from 'lucide-react';
-import { format } from 'date-fns';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FolderPlus, Search, Filter, Calendar, Edit, Trash2, Eye } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
 
 interface Project {
   id: string;
@@ -49,34 +26,36 @@ interface Project {
 
 const Projects = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) {
-      fetchProjects();
-    }
+    fetchProjects();
   }, [user]);
 
   const fetchProjects = async () => {
+    if (!user) return;
+
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('projects')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+
       setProjects(data || []);
     } catch (error) {
       console.error('Error fetching projects:', error);
       toast({
-        title: "Error loading projects",
-        description: "Please try refreshing the page.",
+        title: "Error fetching projects",
+        description: "Failed to load projects. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -84,46 +63,20 @@ const Projects = () => {
     }
   };
 
-  const handleViewProject = (projectId: string) => {
-    navigate(`/projects/${projectId}`);
-  };
-
-  const handleEditProject = (projectId: string) => {
-    // For now, navigate to project detail page
-    // In the future, this could open an edit modal
-    navigate(`/projects/${projectId}`);
-  };
-
-  const handleDeleteProject = async (projectId: string, projectTitle: string) => {
-    if (!confirm(`Are you sure you want to delete "${projectTitle}"? This action cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('projects')
-        .delete()
-        .eq('id', projectId);
-
-      if (error) throw error;
-
-      setProjects(prev => prev.filter(p => p.id !== projectId));
-      toast({
-        title: "Project deleted",
-        description: `${projectTitle} has been deleted successfully.`,
-      });
-    } catch (error) {
-      console.error('Error deleting project:', error);
-      toast({
-        title: "Error deleting project",
-        description: "Please try again.",
-        variant: "destructive",
-      });
-    }
+  const getProjectTypeLabel = (type: string) => {
+    const types = {
+      'web-app': 'Web App',
+      'mobile-app': 'Mobile App',
+      'saas': 'SaaS Platform',
+      'desktop-app': 'Desktop App',
+      'api': 'API/Backend',
+      'other': 'Other',
+    };
+    return types[type as keyof typeof types] || type;
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case 'planning':
         return 'bg-blue-100 text-blue-800';
       case 'in-progress':
@@ -137,71 +90,61 @@ const Projects = () => {
     }
   };
 
-  const getProjectTypeIcon = (projectType: string) => {
-    switch (projectType) {
-      case 'web-app':
-        return <Code className="h-4 w-4" />;
-      case 'mobile-app':
-        return <Smartphone className="h-4 w-4" />;
-      case 'desktop-app':
-        return <Monitor className="h-4 w-4" />;
-      case 'api':
-        return <Server className="h-4 w-4" />;
-      case 'saas':
-        return <Cloud className="h-4 w-4" />;
-      default:
-        return <HelpCircle className="h-4 w-4" />;
+  const handleDeleteProject = async (projectId: string) => {
+    if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Project deleted",
+        description: "Project has been successfully deleted.",
+      });
+
+      fetchProjects(); // Refresh project list
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      toast({
+        title: "Error deleting project",
+        description: "Failed to delete project. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getProjectTypeLabel = (projectType: string) => {
-    switch (projectType) {
-      case 'web-app':
-        return 'Web App';
-      case 'mobile-app':
-        return 'Mobile App';
-      case 'desktop-app':
-        return 'Desktop App';
-      case 'api':
-        return 'API/Backend';
-      case 'saas':
-        return 'SaaS Platform';
-      default:
-        return 'Other';
-    }
+  const handleCreateProject = () => {
+    fetchProjects();
   };
 
-  const formatStatus = (status: string) => {
-    return status.split('-').map(word => 
-      word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ');
-  };
+  const filteredProjects = projects.filter((project) => {
+    const searchTermLower = searchTerm.toLowerCase();
+    const titleMatch = project.title.toLowerCase().includes(searchTermLower);
+    const descriptionMatch = project.description?.toLowerCase().includes(searchTermLower);
+    const statusMatch = statusFilter === 'all' || project.status === statusFilter;
 
-  const filteredProjects = projects.filter(project => {
-    const matchesSearch = project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (project.description && project.description.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesStatus = statusFilter === 'all' || project.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    return titleMatch || descriptionMatch && statusMatch;
   });
-
-  const statusCounts = {
-    all: projects.length,
-    planning: projects.filter(p => p.status === 'planning').length,
-    'in-progress': projects.filter(p => p.status === 'in-progress').length,
-    completed: projects.filter(p => p.status === 'completed').length,
-    'on-hold': projects.filter(p => p.status === 'on-hold').length,
-  };
 
   if (loading) {
     return (
       <AppLayout>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-1/4 mb-8"></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-48 bg-gray-200 rounded-lg"></div>
-              ))}
+            <div className="h-8 bg-gray-200 rounded w-1/3 mb-8"></div>
+            <div className="space-y-4">
+              <div className="h-48 bg-gray-200 rounded-lg"></div>
+              <div className="h-48 bg-gray-200 rounded-lg"></div>
+              <div className="h-48 bg-gray-200 rounded-lg"></div>
             </div>
           </div>
         </div>
@@ -211,25 +154,26 @@ const Projects = () => {
 
   return (
     <AppLayout>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Projects</h1>
-            <p className="text-gray-600 mt-1">
-              Manage and organize all your app projects
-            </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
+          <div className="flex items-center gap-3 mb-4 sm:mb-0">
+            <FolderPlus className="h-8 w-8 text-primary" />
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Projects</h1>
+              <p className="text-gray-600">Manage and organize your app projects</p>
+            </div>
           </div>
-          <Button onClick={() => setCreateModalOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
+          <Button onClick={() => setShowCreateModal(true)} className="w-full sm:w-auto">
+            <FolderPlus className="mr-2 h-4 w-4" />
             New Project
           </Button>
         </div>
 
-        {/* Filters and Search */}
+        {/* Search and Filters */}
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               placeholder="Search projects..."
               value={searchTerm}
@@ -237,115 +181,87 @@ const Projects = () => {
               className="pl-10"
             />
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline">
+          <div className="flex gap-2">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[140px]">
                 <Filter className="mr-2 h-4 w-4" />
-                {statusFilter === 'all' ? 'All Status' : formatStatus(statusFilter)}
-                {statusFilter !== 'all' && ` (${statusCounts[statusFilter as keyof typeof statusCounts]})`}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setStatusFilter('all')}>
-                All Status ({statusCounts.all})
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setStatusFilter('planning')}>
-                Planning ({statusCounts.planning})
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setStatusFilter('in-progress')}>
-                In Progress ({statusCounts['in-progress']})
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setStatusFilter('completed')}>
-                Completed ({statusCounts.completed})
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setStatusFilter('on-hold')}>
-                On Hold ({statusCounts['on-hold']})
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="planning">Planning</SelectItem>
+                <SelectItem value="in-progress">In Progress</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="on-hold">On Hold</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Projects Grid */}
         {filteredProjects.length === 0 ? (
           <div className="text-center py-12">
-            <FolderOpen className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-medium text-gray-900 mb-2">
+            <FolderPlus className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
               {projects.length === 0 ? 'No projects yet' : 'No projects found'}
             </h3>
-            <p className="text-gray-500 mb-6">
+            <p className="text-gray-600 mb-6">
               {projects.length === 0 
-                ? 'Create your first project to start planning amazing apps with AI assistance.'
-                : 'Try adjusting your search or filter criteria.'
+                ? 'Get started by creating your first project'
+                : 'Try adjusting your search or filters'
               }
             </p>
-            <Button onClick={() => setCreateModalOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Your First Project
-            </Button>
+            {projects.length === 0 && (
+              <Button onClick={() => setShowCreateModal(true)}>
+                <FolderPlus className="mr-2 h-4 w-4" />
+                Create Your First Project
+              </Button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProjects.map((project) => (
-              <Card key={project.id} className="hover:shadow-md transition-shadow">
+              <Card key={project.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-lg truncate">{project.title}</CardTitle>
-                      <div className="flex items-center space-x-2 mt-2">
-                        <Badge
-                          variant="secondary"
-                          className={getStatusColor(project.status)}
-                        >
-                          {formatStatus(project.status)}
-                        </Badge>
-                        <div className="flex items-center space-x-1 text-sm text-gray-500">
-                          {getProjectTypeIcon(project.project_type)}
-                          <span>{getProjectTypeLabel(project.project_type)}</span>
-                        </div>
-                      </div>
+                    <CardTitle className="text-lg font-semibold text-gray-900 line-clamp-1">
+                      {project.title}
+                    </CardTitle>
+                    <div className="flex gap-1 ml-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/projects/${project.id}`)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteProject(project.id)}
+                        className="h-8 w-8 p-0 text-red-600 hover:text-red-800 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleViewProject(project.id)}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleEditProject(project.id)}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit Project
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          className="text-red-600"
-                          onClick={() => handleDeleteProject(project.id, project.title)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <Badge className={getStatusColor(project.status)}>
+                      {project.status}
+                    </Badge>
+                    <Badge variant="outline">
+                      {getProjectTypeLabel(project.project_type)}
+                    </Badge>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {project.description && (
-                    <CardDescription className="mb-4 line-clamp-3">
-                      {project.description}
-                    </CardDescription>
-                  )}
-                  <div className="flex items-center justify-between text-sm text-gray-500">
-                    <div className="flex items-center">
-                      <Calendar className="mr-1 h-3 w-3" />
-                      {format(new Date(project.created_at), 'MMM d, yyyy')}
-                    </div>
-                    <div>
-                      Updated {format(new Date(project.updated_at), 'MMM d')}
-                    </div>
+                  <CardDescription className="text-sm text-gray-600 mb-4 line-clamp-2">
+                    {project.description || 'No description provided'}
+                  </CardDescription>
+                  <div className="flex items-center text-xs text-gray-500">
+                    <Calendar className="mr-1 h-3 w-3" />
+                    Created {format(new Date(project.created_at), 'MMM d, yyyy')}
                   </div>
                 </CardContent>
               </Card>
@@ -355,9 +271,9 @@ const Projects = () => {
 
         {/* Create Project Modal */}
         <CreateProjectModal
-          isOpen={createModalOpen}
-          onClose={() => setCreateModalOpen(false)}
-          onSuccess={fetchProjects}
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={handleCreateProject}
         />
       </div>
     </AppLayout>

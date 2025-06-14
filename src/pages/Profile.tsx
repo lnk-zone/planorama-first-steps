@@ -1,9 +1,8 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import AppLayout from '@/components/AppLayout';
-import AvatarUpload from '@/components/AvatarUpload';
+import { AvatarUpload } from '@/components/AvatarUpload';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -215,16 +214,11 @@ const Profile = () => {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Avatar Upload */}
-              <div className="flex flex-col items-center space-y-4">
-                <AvatarUpload
-                  uid={user!.id}
-                  url={profile.avatar_url}
-                  onUpload={handleAvatarUpdate}
-                />
-                <p className="text-sm text-gray-500 text-center">
-                  Click the avatar to upload a new profile picture
-                </p>
-              </div>
+              <AvatarUpload
+                currentAvatarUrl={profile.avatar_url}
+                userName={profile.full_name || profile.email}
+                onAvatarUpdate={handleAvatarUpdate}
+              />
 
               <Separator />
 
