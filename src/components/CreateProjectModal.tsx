@@ -237,7 +237,7 @@ const CreateProjectModal = ({ isOpen, onClose, onSuccess }: CreateProjectModalPr
                           Using Template: {selectedTemplate.name}
                         </p>
                         <p className="text-xs text-blue-700">
-                          {Array.isArray(selectedTemplate.features) ? (selectedTemplate.features as TemplateFeature[]).length : 0} features will be added
+                          {Array.isArray(selectedTemplate.features) ? (selectedTemplate.features as unknown as TemplateFeature[]).length : 0} features will be added
                         </p>
                       </div>
                       <Button

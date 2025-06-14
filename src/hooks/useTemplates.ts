@@ -41,7 +41,7 @@ export const useTemplates = () => {
     if (!template) throw new Error('Template not found');
 
     // Parse features from JSON and type cast
-    const features = Array.isArray(template.features) ? template.features as TemplateFeature[] : [];
+    const features = Array.isArray(template.features) ? template.features as unknown as TemplateFeature[] : [];
 
     // Create features from template
     const featurePromises = features.map((feature, index) =>

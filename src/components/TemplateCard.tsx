@@ -34,7 +34,7 @@ const TemplateCard = ({ template, onSelect }: TemplateCardProps) => {
   };
 
   // Safely parse features from JSON
-  const features = Array.isArray(template.features) ? template.features as TemplateFeature[] : [];
+  const features = Array.isArray(template.features) ? template.features as unknown as TemplateFeature[] : [];
 
   return (
     <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer group">
