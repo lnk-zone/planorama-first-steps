@@ -17,6 +17,10 @@ import Profile from "./pages/Profile";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
+import TemplatesPage from "./pages/TemplatesPage";
+import ProjectPlanningPage from "./pages/ProjectPlanningPage";
+import FeaturesPage from "./pages/FeaturesPage";
+import UserStoriesPage from "./pages/UserStoriesPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,6 +61,26 @@ const App = () => (
             <Route path="/projects/:id" element={
               <ProtectedRoute>
                 <ProjectDetail />
+              </ProtectedRoute>
+            } />
+            <Route path="/projects/:id/planning" element={
+              <ProtectedRoute>
+                <ProjectPlanningPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/projects/:id/features" element={
+              <ProtectedRoute>
+                <FeaturesPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/projects/:id/features/:featureId/stories" element={
+              <ProtectedRoute>
+                <UserStoriesPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/templates" element={
+              <ProtectedRoute>
+                <TemplatesPage />
               </ProtectedRoute>
             } />
             <Route path="/profile" element={

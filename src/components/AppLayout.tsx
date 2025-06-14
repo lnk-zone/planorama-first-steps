@@ -22,6 +22,7 @@ import {
   Settings, 
   LogOut,
   User,
+  FileTemplate,
 } from 'lucide-react';
 
 interface AppLayoutProps {
@@ -47,6 +48,7 @@ const AppLayout = ({ children }: AppLayoutProps) => {
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Projects', href: '/projects', icon: FolderOpen },
+    { name: 'Templates', href: '/templates', icon: FileTemplate },
   ];
 
   const getInitials = (name: string) => {
