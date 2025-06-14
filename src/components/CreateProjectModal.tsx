@@ -28,6 +28,7 @@ interface CreateProjectData {
   title: string;
   description: string;
   status: string;
+  project_type: string;
 }
 
 const CreateProjectModal = ({ isOpen, onClose, onSuccess }: CreateProjectModalProps) => {
@@ -37,8 +38,18 @@ const CreateProjectModal = ({ isOpen, onClose, onSuccess }: CreateProjectModalPr
     title: '',
     description: '',
     status: 'planning',
+    project_type: 'web-app',
   });
   const [errors, setErrors] = useState<{ title?: string }>({});
+
+  const projectTypes = [
+    { value: 'web-app', label: 'Web App' },
+    { value: 'mobile-app', label: 'Mobile App' },
+    { value: 'saas', label: 'SaaS Platform' },
+    { value: 'desktop-app', label: 'Desktop App' },
+    { value: 'api', label: 'API/Backend' },
+    { value: 'other', label: 'Other' },
+  ];
 
   const validateForm = () => {
     const newErrors: { title?: string } = {};
@@ -74,6 +85,7 @@ const CreateProjectModal = ({ isOpen, onClose, onSuccess }: CreateProjectModalPr
           title: formData.title.trim(),
           description: formData.description.trim() || null,
           status: formData.status,
+          project_type: formData.project_type,
         });
 
       if (error) throw error;
@@ -88,6 +100,7 @@ const CreateProjectModal = ({ isOpen, onClose, onSuccess }: CreateProjectModalPr
         title: '',
         description: '',
         status: 'planning',
+        project_type: 'web-app',
       });
       
       onSuccess();
@@ -110,6 +123,7 @@ const CreateProjectModal = ({ isOpen, onClose, onSuccess }: CreateProjectModalPr
         title: '',
         description: '',
         status: 'planning',
+        project_type: 'web-app',
       });
       setErrors({});
       onClose();
@@ -122,7 +136,7 @@ const CreateProjectModal = ({ isOpen, onClose, onSuccess }: CreateProjectModalPr
         <DialogHeader>
           <DialogTitle>Create New Project</DialogTitle>
           <DialogDescription>
-            Start planning your next amazing app. Give it a name and description to get started.
+            Start planning your next amazing app. Give it a name, description, and select the project type.
           </DialogDescription>
         </DialogHeader>
         
@@ -140,6 +154,25 @@ const CreateProjectModal = ({ isOpen, onClose, onSuccess }: CreateProjectModalPr
               {errors.title && (
                 <p className="text-sm text-red-500">{errors.title}</p>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="project_type">Project Type</Label>
+              <Select
+                value={formData.project_type}
+                onValueChange={(value) => handleInputChange('project_type', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select project type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projectTypes.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

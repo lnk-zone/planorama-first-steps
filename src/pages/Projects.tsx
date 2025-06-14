@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -24,7 +25,13 @@ import {
   Trash2, 
   Eye,
   Calendar,
-  Filter
+  Filter,
+  Code,
+  Smartphone,
+  Monitor,
+  Server,
+  Cloud,
+  HelpCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
@@ -35,6 +42,7 @@ interface Project {
   title: string;
   description: string | null;
   status: string;
+  project_type: string;
   created_at: string;
   updated_at: string;
 }
@@ -126,6 +134,40 @@ const Projects = () => {
         return 'bg-gray-100 text-gray-800';
       default:
         return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getProjectTypeIcon = (projectType: string) => {
+    switch (projectType) {
+      case 'web-app':
+        return <Code className="h-4 w-4" />;
+      case 'mobile-app':
+        return <Smartphone className="h-4 w-4" />;
+      case 'desktop-app':
+        return <Monitor className="h-4 w-4" />;
+      case 'api':
+        return <Server className="h-4 w-4" />;
+      case 'saas':
+        return <Cloud className="h-4 w-4" />;
+      default:
+        return <HelpCircle className="h-4 w-4" />;
+    }
+  };
+
+  const getProjectTypeLabel = (projectType: string) => {
+    switch (projectType) {
+      case 'web-app':
+        return 'Web App';
+      case 'mobile-app':
+        return 'Mobile App';
+      case 'desktop-app':
+        return 'Desktop App';
+      case 'api':
+        return 'API/Backend';
+      case 'saas':
+        return 'SaaS Platform';
+      default:
+        return 'Other';
     }
   };
 
@@ -257,6 +299,10 @@ const Projects = () => {
                         >
                           {formatStatus(project.status)}
                         </Badge>
+                        <div className="flex items-center space-x-1 text-sm text-gray-500">
+                          {getProjectTypeIcon(project.project_type)}
+                          <span>{getProjectTypeLabel(project.project_type)}</span>
+                        </div>
                       </div>
                     </div>
                     <DropdownMenu>
