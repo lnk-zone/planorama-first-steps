@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useClickOutside } from '@/hooks/useClickOutside';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -33,6 +34,11 @@ const AppLayout = ({ children }: AppLayoutProps) => {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const mobileMenuRef = useClickOutside<HTMLDivElement>({
+    onClickOutside: () => setMobileMenuOpen(false),
+    enabled: mobileMenuOpen
+  });
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/login');
@@ -58,6 +64,11 @@ const AppLayout = ({ children }: AppLayoutProps) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Mobile menu overlay */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" />
+      )}
+
       {/* Navigation Header */}
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -160,7 +171,10 @@ const AppLayout = ({ children }: AppLayoutProps) => {
 
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-gray-200 bg-white">
+          <div 
+            ref={mobileMenuRef}
+            className="md:hidden border-t border-gray-200 bg-white shadow-lg z-50 transform transition-transform duration-200 ease-in-out"
+          >
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
               {navigation.map((item) => {
                 const Icon = item.icon;
@@ -168,7 +182,7 @@ const AppLayout = ({ children }: AppLayoutProps) => {
                   <Link
                     key={item.name}
                     to={item.href}
-                    className={`flex items-center space-x-3 px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                    className={`flex items-center space-x-3 px-3 py-3 rounded-md text-base font-medium transition-colors ${
                       isActivePath(item.href)
                         ? 'text-primary-600 bg-primary-50'
                         : 'text-gray-700 hover:text-primary-600 hover:bg-gray-100'

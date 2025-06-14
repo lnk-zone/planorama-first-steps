@@ -8,8 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, Mail, Lock, User, Building, Lightbulb } from 'lucide-react';
+import { Loader2, Lock, User, Building, Lightbulb } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import EmailInput from '@/components/ui/email-input';
+import PasswordStrengthIndicator from '@/components/ui/password-strength-indicator';
 
 const Register = () => {
   const { user, signUp } = useAuth();
@@ -23,6 +25,8 @@ const Register = () => {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [emailValid, setEmailValid] = useState(false);
+  const [passwordStrength, setPasswordStrength] = useState(0);
   const [errors, setErrors] = useState<{
     email?: string;
     password?: string;
@@ -39,14 +43,14 @@ const Register = () => {
 
     if (!formData.email) {
       newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+    } else if (!emailValid) {
       newErrors.email = 'Please enter a valid email';
     }
 
     if (!formData.password) {
       newErrors.password = 'Password is required';
-    } else if (formData.password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
+    } else if (passwordStrength < 3) {
+      newErrors.password = 'Password is too weak';
     }
 
     if (!formData.fullName) {
@@ -186,23 +190,15 @@ const Register = () => {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="Enter your email"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange('email', e.target.value)}
-                    className={`pl-10 ${errors.email ? 'border-red-500' : ''}`}
-                  />
-                </div>
-                {errors.email && (
-                  <p className="text-sm text-red-500">{errors.email}</p>
-                )}
-              </div>
+              <EmailInput
+                value={formData.email}
+                onChange={(value) => handleInputChange('email', value)}
+                onValidationChange={setEmailValid}
+                required
+              />
+              {errors.email && (
+                <p className="text-sm text-red-500">{errors.email}</p>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="company">Company (Optional)</Label>
@@ -235,9 +231,10 @@ const Register = () => {
                 {errors.password && (
                   <p className="text-sm text-red-500">{errors.password}</p>
                 )}
-                <p className="text-xs text-gray-500">
-                  Password must be at least 8 characters long
-                </p>
+                <PasswordStrengthIndicator 
+                  password={formData.password}
+                  onStrengthChange={setPasswordStrength}
+                />
               </div>
 
               <div className="flex items-center space-x-2">
