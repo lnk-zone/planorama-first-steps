@@ -1,21 +1,10 @@
 
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import Landing from './Landing';
 
 const Index = () => {
   const { user, loading } = useAuth();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!loading) {
-      if (user) {
-        navigate('/dashboard');
-      } else {
-        navigate('/login');
-      }
-    }
-  }, [user, loading, navigate]);
 
   if (loading) {
     return (
@@ -25,7 +14,14 @@ const Index = () => {
     );
   }
 
-  return null;
+  // If user is authenticated, redirect them to dashboard
+  if (user) {
+    window.location.href = '/dashboard';
+    return null;
+  }
+
+  // Show landing page for non-authenticated users
+  return <Landing />;
 };
 
 export default Index;
