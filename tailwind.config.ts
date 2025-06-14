@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -26,7 +27,12 @@ export default {
 				foreground: 'hsl(var(--foreground))',
 				primary: {
 					DEFAULT: 'hsl(var(--primary))',
-					foreground: 'hsl(var(--primary-foreground))'
+					foreground: 'hsl(var(--primary-foreground))',
+					50: '#eff6ff',
+					100: '#dbeafe',
+					500: '#3b82f6',
+					600: '#2563eb',
+					700: '#1d4ed8',
 				},
 				secondary: {
 					DEFAULT: 'hsl(var(--secondary))',
@@ -52,15 +58,20 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
-				sidebar: {
-					DEFAULT: 'hsl(var(--sidebar-background))',
-					foreground: 'hsl(var(--sidebar-foreground))',
-					primary: 'hsl(var(--sidebar-primary))',
-					'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
-					accent: 'hsl(var(--sidebar-accent))',
-					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
-					border: 'hsl(var(--sidebar-border))',
-					ring: 'hsl(var(--sidebar-ring))'
+				gray: {
+					50: '#f9fafb',
+					100: '#f3f4f6',
+					200: '#e5e7eb',
+					300: '#d1d5db',
+					500: '#6b7280',
+					700: '#374151',
+					900: '#111827',
+				},
+				green: {
+					500: '#10b981',
+				},
+				red: {
+					500: '#ef4444',
 				}
 			},
 			borderRadius: {
