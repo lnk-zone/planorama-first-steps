@@ -44,7 +44,7 @@ const Projects = () => {
     try {
       const { data, error } = await supabase
         .from('projects')
-        .select('*')
+        .select('id, user_id, title, description, status, project_type, created_at, updated_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
