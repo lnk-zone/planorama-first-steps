@@ -4,13 +4,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import AppLayout from '@/components/AppLayout';
 import CreateProjectModal from '@/components/CreateProjectModal';
+import EditProjectModal from '@/components/EditProjectModal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FolderPlus, Search, Filter, Calendar, Edit, Trash2, Eye } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { useNotifications } from '@/hooks/useNotifications';
 import { format } from 'date-fns';
 
 interface Project {
@@ -27,11 +28,14 @@ interface Project {
 const Projects = () => {
   const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const navigate = useNavigate();
+  const { showSuccess, showError } = useNotifications();
 
   useEffect(() => {
     fetchProjects();
@@ -53,11 +57,7 @@ const Projects = () => {
       setProjects(data || []);
     } catch (error) {
       console.error('Error fetching projects:', error);
-      toast({
-        title: "Error fetching projects",
-        description: "Failed to load projects. Please try again.",
-        variant: "destructive",
-      });
+      showError('Failed to load projects. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -90,6 +90,11 @@ const Projects = () => {
     }
   };
 
+  const handleEditProject = (project: Project) => {
+    setEditingProject(project);
+    setShowEditModal(true);
+  };
+
   const handleDeleteProject = async (projectId: string) => {
     if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
       return;
@@ -104,25 +109,21 @@ const Projects = () => {
 
       if (error) throw error;
 
-      toast({
-        title: "Project deleted",
-        description: "Project has been successfully deleted.",
-      });
-
+      showSuccess('Project deleted successfully');
       fetchProjects(); // Refresh project list
     } catch (error) {
       console.error('Error deleting project:', error);
-      toast({
-        title: "Error deleting project",
-        description: "Failed to delete project. Please try again.",
-        variant: "destructive",
-      });
+      showError('Failed to delete project. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleCreateProject = () => {
+    fetchProjects();
+  };
+
+  const handleEditSuccess = () => {
     fetchProjects();
   };
 
@@ -233,14 +234,25 @@ const Projects = () => {
                         size="sm"
                         onClick={() => navigate(`/projects/${project.id}`)}
                         className="h-8 w-8 p-0"
+                        title="View project"
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
+                        onClick={() => handleEditProject(project)}
+                        className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                        title="Edit project"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => handleDeleteProject(project.id)}
                         className="h-8 w-8 p-0 text-red-600 hover:text-red-800 hover:bg-red-50"
+                        title="Delete project"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -274,6 +286,17 @@ const Projects = () => {
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
           onSuccess={handleCreateProject}
+        />
+
+        {/* Edit Project Modal */}
+        <EditProjectModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingProject(null);
+          }}
+          onSuccess={handleEditSuccess}
+          project={editingProject}
         />
       </div>
     </AppLayout>
