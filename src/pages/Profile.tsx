@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase, UserProfile } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,17 @@ import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, User, Mail, Building, Save } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+
+interface UserProfile {
+  id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  company: string | null;
+  role: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
 const Profile = () => {
   const { user } = useAuth();
@@ -37,7 +48,7 @@ const Profile = () => {
         .eq('id', user?.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
+      if (error && error.code !== 'PGRST116') {
         throw error;
       }
 
@@ -107,7 +118,6 @@ const Profile = () => {
 
       if (error) throw error;
 
-      // Update local profile state
       if (profile) {
         setProfile({
           ...profile,

@@ -1,7 +1,6 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase, Project } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import AppLayout from '@/components/AppLayout';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import { Button } from '@/components/ui/button';
@@ -28,6 +27,16 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
+
+interface Project {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
 
 const Projects = () => {
   const { user } = useAuth();
