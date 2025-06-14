@@ -58,6 +58,7 @@ export const useAuth = () => {
             full_name: fullName,
             company: company || null,
           },
+          emailRedirectTo: `${window.location.origin}/`,
         },
       });
 
