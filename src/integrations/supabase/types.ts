@@ -176,6 +176,153 @@ export type Database = {
         }
         Relationships: []
       }
+      story_dependencies: {
+        Row: {
+          created_at: string | null
+          dependency_type: string | null
+          depends_on_story_id: string
+          id: string
+          story_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          dependency_type?: string | null
+          depends_on_story_id: string
+          id?: string
+          story_id: string
+        }
+        Update: {
+          created_at?: string | null
+          dependency_type?: string | null
+          depends_on_story_id?: string
+          id?: string
+          story_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_dependencies_depends_on_story_id_fkey"
+            columns: ["depends_on_story_id"]
+            isOneToOne: false
+            referencedRelation: "user_stories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "story_dependencies_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "user_stories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      story_operations: {
+        Row: {
+          changes: Json | null
+          id: string
+          operation_type: string
+          performed_at: string | null
+          performed_by: string | null
+          story_ids: string[]
+        }
+        Insert: {
+          changes?: Json | null
+          id?: string
+          operation_type: string
+          performed_at?: string | null
+          performed_by?: string | null
+          story_ids: string[]
+        }
+        Update: {
+          changes?: Json | null
+          id?: string
+          operation_type?: string
+          performed_at?: string | null
+          performed_by?: string | null
+          story_ids?: string[]
+        }
+        Relationships: []
+      }
+      story_relationships: {
+        Row: {
+          child_story_id: string | null
+          created_at: string | null
+          id: string
+          parent_story_id: string | null
+          relationship_type: string | null
+        }
+        Insert: {
+          child_story_id?: string | null
+          created_at?: string | null
+          id?: string
+          parent_story_id?: string | null
+          relationship_type?: string | null
+        }
+        Update: {
+          child_story_id?: string | null
+          created_at?: string | null
+          id?: string
+          parent_story_id?: string | null
+          relationship_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_relationships_child_story_id_fkey"
+            columns: ["child_story_id"]
+            isOneToOne: false
+            referencedRelation: "user_stories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "story_relationships_parent_story_id_fkey"
+            columns: ["parent_story_id"]
+            isOneToOne: false
+            referencedRelation: "user_stories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      story_templates: {
+        Row: {
+          acceptance_criteria_template: string[] | null
+          category: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          description_template: string | null
+          id: string
+          is_public: boolean | null
+          name: string
+          title_template: string
+          updated_at: string | null
+        }
+        Insert: {
+          acceptance_criteria_template?: string[] | null
+          category?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          description_template?: string | null
+          id?: string
+          is_public?: boolean | null
+          name: string
+          title_template: string
+          updated_at?: string | null
+        }
+        Update: {
+          acceptance_criteria_template?: string[] | null
+          category?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          description_template?: string | null
+          id?: string
+          is_public?: boolean | null
+          name?: string
+          title_template?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       user_profiles: {
         Row: {
           avatar_url: string | null
