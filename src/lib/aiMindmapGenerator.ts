@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { Feature } from '@/hooks/useFeatures';
 import type { UserStory } from '@/hooks/useUserStories';
@@ -34,10 +33,12 @@ export class AIMindmapGenerator {
   async generateMindmapFromDescription(
     projectId: string,
     projectDescription: string,
-    appType: string = 'web_app'
+    appType: string = 'web_app',
+    existingMindmapId?: string | null
   ): Promise<GenerationResult> {
     try {
-      this.updateProgress('analyzing', 10, 'Analyzing project description...');
+      const isRegeneration = !!existingMindmapId;
+      this.updateProgress('analyzing', 10, isRegeneration ? 'Analyzing project for regeneration...' : 'Analyzing project description...');
 
       const prompt = this.buildMindmapGenerationPrompt(projectDescription, appType);
       
@@ -67,23 +68,39 @@ export class AIMindmapGenerator {
         throw new Error('Invalid response structure from AI service');
       }
       
-      this.updateProgress('creating_features', 60, 'Creating features from mindmap...');
+      this.updateProgress('creating_features', 60, isRegeneration ? 'Updating features...' : 'Creating features from mindmap...');
 
-      // 1. Create mindmap record with JSONB structure
-      const mindmapData = await this.createMindmapRecord(projectId, aiResponse.mindmap);
-      
-      // 2. Create features from mindmap nodes
-      const features = await this.createFeaturesFromNodes(projectId, aiResponse.features);
-      
-      this.updateProgress('generating_stories', 80, 'Generating user stories...');
-      
-      // 3. Create user stories for each feature
-      const userStories = await this.createUserStoriesFromFeatures(features, aiResponse.userStories);
-      
-      // 4. Update mindmap with feature IDs for synchronization
-      await this.linkMindmapToFeatures(mindmapData.id, features, aiResponse.mindmap);
+      let mindmapData: MindmapData;
+      let features: Feature[];
+      let userStories: UserStory[];
 
-      this.updateProgress('complete', 100, 'Mindmap generation complete!');
+      if (isRegeneration && existingMindmapId) {
+        // Clean up existing data first
+        await this.cleanupExistingData(projectId, existingMindmapId);
+        
+        // Update existing mindmap
+        mindmapData = await this.updateMindmapRecord(existingMindmapId, aiResponse.mindmap);
+        
+        // Create new features and stories
+        features = await this.createFeaturesFromNodes(projectId, aiResponse.features);
+        
+        this.updateProgress('generating_stories', 80, 'Regenerating user stories...');
+        userStories = await this.createUserStoriesFromFeatures(features, aiResponse.userStories);
+        
+        // Update mindmap with new feature mapping
+        await this.linkMindmapToFeatures(existingMindmapId, features, aiResponse.mindmap);
+      } else {
+        // Create new mindmap (original logic)
+        mindmapData = await this.createMindmapRecord(projectId, aiResponse.mindmap);
+        features = await this.createFeaturesFromNodes(projectId, aiResponse.features);
+        
+        this.updateProgress('generating_stories', 80, 'Generating user stories...');
+        userStories = await this.createUserStoriesFromFeatures(features, aiResponse.userStories);
+        
+        await this.linkMindmapToFeatures(mindmapData.id, features, aiResponse.mindmap);
+      }
+
+      this.updateProgress('complete', 100, isRegeneration ? 'Mindmap regeneration complete!' : 'Mindmap generation complete!');
 
       return { mindmapData, features, userStories };
     } catch (error) {
@@ -104,6 +121,53 @@ export class AIMindmapGenerator {
       
       throw new Error(errorMessage);
     }
+  }
+
+  private async cleanupExistingData(projectId: string, mindmapId: string): Promise<void> {
+    try {
+      // Get existing features for this project
+      const { data: existingFeatures } = await supabase
+        .from('features')
+        .select('id')
+        .eq('project_id', projectId);
+
+      if (existingFeatures && existingFeatures.length > 0) {
+        const featureIds = existingFeatures.map(f => f.id);
+        
+        // Delete user stories first (due to foreign key constraints)
+        await supabase
+          .from('user_stories')
+          .delete()
+          .in('feature_id', featureIds);
+        
+        // Delete features
+        await supabase
+          .from('features')
+          .delete()
+          .eq('project_id', projectId);
+      }
+
+      console.log('Cleaned up existing data for regeneration');
+    } catch (error) {
+      console.error('Error cleaning up existing data:', error);
+      throw new Error('Failed to clean up existing data');
+    }
+  }
+
+  private async updateMindmapRecord(mindmapId: string, mindmapData: any): Promise<MindmapData> {
+    const { data, error } = await supabase
+      .from('mindmaps')
+      .update({
+        data: mindmapData,
+        updated_at: new Date().toISOString(),
+        version: 1 // Reset version for regeneration
+      })
+      .eq('id', mindmapId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 
   private updateProgress(stage: GenerationProgressData['stage'], progress: number, currentAction: string) {

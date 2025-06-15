@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Settings, Share2, Download, Zap, FileText, Users, Activity, Layers, Plus } from 'lucide-react';
+import { ArrowLeft, Settings, Share2, Download, Zap, FileText, Users, Activity, Layers, Plus, RefreshCw } from 'lucide-react';
 import MindmapVisualization, { MindmapStructure, MindmapNode } from '@/components/mindmap/MindmapVisualization';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -39,6 +39,7 @@ const ProjectDetail = () => {
   const [mindmapLoading, setMindmapLoading] = useState(false);
   const [selectedParentNodeId, setSelectedParentNodeId] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<MindmapNode | null>(null);
+  const [hasMindmap, setHasMindmap] = useState(false);
 
   useEffect(() => {
     if (id && user) {
@@ -83,17 +84,31 @@ const ProjectDetail = () => {
   const fetchMindmap = async () => {
     if (!id) return;
     setMindmapLoading(true);
-    const { data, error } = await supabase
-      .from('mindmaps')
-      .select('id, data')
-      .eq('project_id', id)
-      .single();
-    if (!error && data) {
-      setMindmapId(data.id);
-      // Safely convert Json to MindmapStructure
-      setMindmap(data.data as unknown as MindmapStructure);
+    
+    try {
+      const { data, error } = await supabase
+        .from('mindmaps')
+        .select('id, data')
+        .eq('project_id', id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+        
+      if (!error && data) {
+        setMindmapId(data.id);
+        setMindmap(data.data as unknown as MindmapStructure);
+        setHasMindmap(true);
+      } else {
+        setMindmapId(null);
+        setMindmap(null);
+        setHasMindmap(false);
+      }
+    } catch (error) {
+      console.error('Error fetching mindmap:', error);
+      setHasMindmap(false);
+    } finally {
+      setMindmapLoading(false);
     }
-    setMindmapLoading(false);
   };
 
   const handleAddFeature = async (featureData: any) => {
@@ -227,10 +242,12 @@ const ProjectDetail = () => {
 
     setMindmapId(result.mindmapData.id);
     setMindmap(result.mindmapData.data as MindmapStructure);
+    setHasMindmap(true);
 
+    const isRegeneration = hasMindmap;
     toast({
-      title: "Mindmap generated successfully!",
-      description: `Generated ${result.features.length} features and ${result.userStories.length} user stories.`,
+      title: isRegeneration ? "Mindmap regenerated successfully!" : "Mindmap generated successfully!",
+      description: `${isRegeneration ? 'Updated' : 'Generated'} ${result.features.length} features and ${result.userStories.length} user stories.`,
     });
   };
 
@@ -307,13 +324,23 @@ const ProjectDetail = () => {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button 
-                onClick={() => setIsAIGenerationModalOpen(true)}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-              >
-                <Zap className="h-4 w-4 mr-2" />
-                Generate Mindmap with AI
-              </Button>
+              {hasMindmap ? (
+                <Button 
+                  onClick={() => setIsAIGenerationModalOpen(true)}
+                  className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Regenerate Mindmap
+                </Button>
+              ) : (
+                <Button 
+                  onClick={() => setIsAIGenerationModalOpen(true)}
+                  className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                >
+                  <Zap className="h-4 w-4 mr-2" />
+                  Generate Mindmap with AI
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -386,13 +413,23 @@ const ProjectDetail = () => {
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold">Quick Actions</h3>
                     <div className="space-y-2">
-                      <Button 
-                        onClick={() => setIsAIGenerationModalOpen(true)} 
-                        className="w-full justify-start bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                      >
-                        <Zap className="h-4 w-4 mr-2" />
-                        Generate Mindmap with AI
-                      </Button>
+                      {hasMindmap ? (
+                        <Button 
+                          onClick={() => setIsAIGenerationModalOpen(true)} 
+                          className="w-full justify-start bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700"
+                        >
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Regenerate Mindmap
+                        </Button>
+                      ) : (
+                        <Button 
+                          onClick={() => setIsAIGenerationModalOpen(true)} 
+                          className="w-full justify-start bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                        >
+                          <Zap className="h-4 w-4 mr-2" />
+                          Generate Mindmap with AI
+                        </Button>
+                      )}
                       <Button onClick={() => setIsAddModalOpen(true)} className="w-full justify-start">
                         <Plus className="h-4 w-4 mr-2" />
                         Add Feature
@@ -636,6 +673,7 @@ const ProjectDetail = () => {
           projectId={id!}
           projectTitle={project?.title}
           projectDescription={project?.description}
+          existingMindmapId={mindmapId}
           onClose={() => setIsAIGenerationModalOpen(false)}
           onComplete={handleAIGenerationComplete}
         />

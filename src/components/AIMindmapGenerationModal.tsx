@@ -16,6 +16,7 @@ export interface AIMindmapGenerationModalProps {
   projectId: string;
   projectTitle?: string;
   projectDescription?: string;
+  existingMindmapId?: string | null;
   onClose: () => void;
   onComplete: (result: GenerationResult) => void;
 }
@@ -25,6 +26,7 @@ const AIMindmapGenerationModal: React.FC<AIMindmapGenerationModalProps> = ({
   projectId,
   projectTitle = '',
   projectDescription = '',
+  existingMindmapId,
   onClose,
   onComplete
 }) => {
@@ -34,6 +36,8 @@ const AIMindmapGenerationModal: React.FC<AIMindmapGenerationModalProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState<GenerationProgressData | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const isRegeneration = !!existingMindmapId;
 
   useEffect(() => {
     if (isOpen && projectDescription) {
@@ -52,7 +56,11 @@ const AIMindmapGenerationModal: React.FC<AIMindmapGenerationModalProps> = ({
     }
 
     setIsGenerating(true);
-    setProgress({ stage: 'analyzing', progress: 0, currentAction: 'Starting generation...' });
+    setProgress({ 
+      stage: 'analyzing', 
+      progress: 0, 
+      currentAction: isRegeneration ? 'Starting regeneration...' : 'Starting generation...' 
+    });
 
     try {
       const generator = new AIMindmapGenerator((progress) => {
@@ -62,12 +70,13 @@ const AIMindmapGenerationModal: React.FC<AIMindmapGenerationModalProps> = ({
       const result = await generator.generateMindmapFromDescription(
         projectId,
         description,
-        appType
+        appType,
+        existingMindmapId
       );
 
       toast({
-        title: "Mindmap generated successfully!",
-        description: `Created ${result.features.length} features with ${result.userStories.length} user stories.`,
+        title: isRegeneration ? "Mindmap regenerated successfully!" : "Mindmap generated successfully!",
+        description: `${isRegeneration ? 'Updated' : 'Created'} ${result.features.length} features with ${result.userStories.length} user stories.`,
       });
 
       onComplete(result);
@@ -75,7 +84,7 @@ const AIMindmapGenerationModal: React.FC<AIMindmapGenerationModalProps> = ({
     } catch (error) {
       console.error('Generation failed:', error);
       toast({
-        title: "Generation failed",
+        title: isRegeneration ? "Regeneration failed" : "Generation failed",
         description: "Failed to generate mindmap. Please try again.",
         variant: "destructive",
       });
@@ -116,8 +125,17 @@ const AIMindmapGenerationModal: React.FC<AIMindmapGenerationModalProps> = ({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5" />
-            Generate Mindmap with AI
+            {isRegeneration ? (
+              <>
+                <RefreshCw className="h-5 w-5" />
+                Regenerate Mindmap with AI
+              </>
+            ) : (
+              <>
+                <Zap className="h-5 w-5" />
+                Generate Mindmap with AI
+              </>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -125,11 +143,21 @@ const AIMindmapGenerationModal: React.FC<AIMindmapGenerationModalProps> = ({
           <GenerationProgress
             stage={progress?.stage || 'analyzing'}
             progress={progress?.progress || 0}
-            currentAction={progress?.currentAction || 'Starting...'}
+            currentAction={progress?.currentAction || (isRegeneration ? 'Starting regeneration...' : 'Starting...')}
             onCancel={handleCancel}
           />
         ) : (
           <div className="space-y-6">
+            {isRegeneration && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  You're about to regenerate the existing mindmap. This will update your current mindmap 
+                  with new content based on the description below. Your existing features and user stories 
+                  will be replaced with newly generated ones.
+                </p>
+              </div>
+            )}
+
             {/* Project Description */}
             <div className="space-y-2">
               <Label htmlFor="description">Project Description</Label>
@@ -142,7 +170,7 @@ const AIMindmapGenerationModal: React.FC<AIMindmapGenerationModalProps> = ({
                 className="resize-none"
               />
               <p className="text-sm text-muted-foreground">
-                Be as detailed as possible. The AI will use this to generate relevant features and user stories.
+                Be as detailed as possible. The AI will use this to {isRegeneration ? 'regenerate' : 'generate'} relevant features and user stories.
               </p>
             </div>
 
@@ -211,19 +239,24 @@ const AIMindmapGenerationModal: React.FC<AIMindmapGenerationModalProps> = ({
               </Button>
               <div className="flex gap-2">
                 <Button
-                  variant="outline"
                   onClick={handleGenerate}
                   disabled={!description.trim()}
+                  className={isRegeneration 
+                    ? "bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700"
+                    : "bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                  }
                 >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Regenerate
-                </Button>
-                <Button
-                  onClick={handleGenerate}
-                  disabled={!description.trim()}
-                >
-                  <Zap className="h-4 w-4 mr-2" />
-                  Generate Mindmap
+                  {isRegeneration ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Regenerate Mindmap
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-4 w-4 mr-2" />
+                      Generate Mindmap
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
