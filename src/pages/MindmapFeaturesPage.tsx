@@ -18,7 +18,7 @@ import type { Feature } from '@/hooks/useFeatures';
 const MindmapFeaturesPage = () => {
   const { id } = useParams<{ id: string }>();
   const { features, loading, addFeature, updateFeature, deleteFeature } = useFeatures(id || '');
-  const { syncStatus, lastSyncTime, conflictCount, syncFeaturesToMindmap, retrySync } = useMindmapSync(id || '');
+  const { syncStatus, lastSyncTime, conflictCount, triggerSync, retrySync } = useMindmapSync(id || '');
   
   const [currentView, setCurrentView] = useState<'mindmap' | 'list'>('mindmap');
   const [mindmapData, setMindmapData] = useState<any>(null);
@@ -53,20 +53,17 @@ const MindmapFeaturesPage = () => {
     loadMindmapData();
   }, [id]);
 
-  // Sync features to mindmap when features change
-  useEffect(() => {
-    if (features.length > 0) {
-      syncFeaturesToMindmap(features);
-    }
-  }, [features, syncFeaturesToMindmap]);
-
   const handleAddFeature = async (featureData: any) => {
     try {
-      await addFeature(featureData);
+      const newFeature = await addFeature(featureData);
       setIsAddModalOpen(false);
+      
+      // Trigger sync after successful feature addition
+      triggerSync([...features, newFeature]);
+      
       toast({
         title: "Feature added",
-        description: "New feature has been added and synced to external mindmap tools.",
+        description: "New feature has been added and will sync to external mindmap tools.",
       });
     } catch (error) {
       toast({
@@ -81,11 +78,16 @@ const MindmapFeaturesPage = () => {
     if (!editingFeature) return;
     
     try {
-      await updateFeature(editingFeature.id, featureData);
+      const updatedFeature = await updateFeature(editingFeature.id, featureData);
       setEditingFeature(null);
+      
+      // Trigger sync after successful feature update
+      const updatedFeatures = features.map(f => f.id === editingFeature.id ? updatedFeature : f);
+      triggerSync(updatedFeatures);
+      
       toast({
         title: "Feature updated",
-        description: "Feature has been updated and synced to external tools.",
+        description: "Feature has been updated and will sync to external tools.",
       });
     } catch (error) {
       toast({
@@ -103,9 +105,14 @@ const MindmapFeaturesPage = () => {
 
     try {
       await deleteFeature(featureId);
+      
+      // Trigger sync after successful feature deletion
+      const remainingFeatures = features.filter(f => f.id !== featureId);
+      triggerSync(remainingFeatures);
+      
       toast({
         title: "Feature deleted",
-        description: "Feature has been removed and synced to external tools.",
+        description: "Feature has been removed and will sync to external tools.",
       });
     } catch (error) {
       toast({
@@ -177,7 +184,7 @@ const MindmapFeaturesPage = () => {
                     </h3>
                     <p className="text-gray-600 mb-6">
                       Integrate with external mindmap tools like Miro, Lucidchart, or Figma. 
-                      Your features will sync automatically with the external tool.
+                      Your features will sync automatically with the external tool when changes are made.
                     </p>
                     <div className="flex gap-2 justify-center">
                       <Button disabled>
@@ -220,7 +227,7 @@ const MindmapFeaturesPage = () => {
                 <CardContent>
                   <div className="space-y-4">
                     <p className="text-gray-600">
-                      Configure webhooks to keep your external mindmap tool in sync:
+                      Configure webhooks to keep your external mindmap tool in sync with feature changes:
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="p-4 border rounded-lg">
