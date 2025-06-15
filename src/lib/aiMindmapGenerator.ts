@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import type { Feature } from '@/hooks/useFeatures';
 import type { UserStory } from '@/hooks/useUserStories';
@@ -80,7 +81,7 @@ export class AIMindmapGenerator {
       const userStories = await this.createUserStoriesFromFeatures(features, aiResponse.userStories);
       
       // 4. Update mindmap with feature IDs for synchronization
-      await this.linkMindmapToFeatures(mindmapData.id, features);
+      await this.linkMindmapToFeatures(mindmapData.id, features, aiResponse.mindmap);
 
       this.updateProgress('complete', 100, 'Mindmap generation complete!');
 
@@ -245,25 +246,41 @@ REQUIREMENTS:
     return data;
   }
 
-  private async linkMindmapToFeatures(mindmapId: string, features: Feature[]): Promise<void> {
-    const featureMap = features.reduce((acc, feature) => {
-      // Safely access metadata properties
-      const metadata = feature.metadata as any;
-      const nodeId = metadata?.node_id;
-      if (nodeId) {
-        acc[nodeId] = feature.id;
+  private async linkMindmapToFeatures(mindmapId: string, features: Feature[], originalMindmapData: any): Promise<void> {
+    try {
+      // Create feature mapping from node IDs to feature IDs
+      const featureMapping = features.reduce((acc, feature) => {
+        const metadata = feature.metadata as any;
+        const nodeId = metadata?.node_id;
+        if (nodeId) {
+          acc[nodeId] = feature.id;
+        }
+        return acc;
+      }, {} as Record<string, string>);
+
+      // Update the mindmap data to include the feature mapping
+      const updatedMindmapData = {
+        ...originalMindmapData,
+        featureMapping
+      };
+
+      const { error } = await supabase
+        .from('mindmaps')
+        .update({
+          data: updatedMindmapData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', mindmapId);
+
+      if (error) {
+        console.error('Error linking mindmap to features:', error);
+        throw error;
       }
-      return acc;
-    }, {} as Record<string, string>);
 
-    const { error } = await supabase
-      .from('mindmaps')
-      .update({
-        metadata: { feature_mapping: featureMap },
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', mindmapId);
-
-    if (error) throw error;
+      console.log('Successfully linked mindmap to features with mapping:', featureMapping);
+    } catch (error) {
+      console.error('Failed to link mindmap to features:', error);
+      throw error;
+    }
   }
 }
