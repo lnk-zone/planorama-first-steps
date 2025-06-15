@@ -1,150 +1,82 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { mindmapSyncService, type SyncEvent, type MindmapNode } from '@/lib/mindmapSync';
 import type { Feature } from '@/hooks/useFeatures';
-import { toast } from '@/hooks/use-toast';
-
-export interface SyncState {
-  status: 'synced' | 'syncing' | 'error' | 'offline';
-  lastSyncTime?: Date;
-  conflictCount: number;
-  isOnline: boolean;
-}
 
 export const useMindmapSync = (projectId: string) => {
-  const [syncState, setSyncState] = useState<SyncState>({
-    status: 'synced',
-    conflictCount: 0,
-    isOnline: navigator.onLine
-  });
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error' | 'offline'>('synced');
+  const [lastSyncTime, setLastSyncTime] = useState<Date | undefined>();
+  const cleanupRef = useRef<(() => void) | null>(null);
 
-  // Handle online/offline status
-  useEffect(() => {
-    const handleOnline = () => {
-      setSyncState(prev => ({ ...prev, isOnline: true, status: 'synced' }));
-    };
+  // Sync mindmap changes to features
+  const syncMindmapToFeatures = async (mindmapId: string, nodes: MindmapNode[]) => {
+    setSyncStatus('syncing');
+    try {
+      await mindmapSyncService.syncMindmapToFeatures(mindmapId, nodes);
+      setSyncStatus('synced');
+      setLastSyncTime(new Date());
+    } catch (error) {
+      console.error('Sync failed:', error);
+      setSyncStatus('error');
+    }
+  };
 
-    const handleOffline = () => {
-      setSyncState(prev => ({ ...prev, isOnline: false, status: 'offline' }));
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
+  // Sync features changes to mindmap
+  const syncFeaturesToMindmap = async (features: Feature[]) => {
+    setSyncStatus('syncing');
+    try {
+      await mindmapSyncService.syncFeaturesToMindmap(projectId, features);
+      setSyncStatus('synced');
+      setLastSyncTime(new Date());
+    } catch (error) {
+      console.error('Sync failed:', error);
+      setSyncStatus('error');
+    }
+  };
 
   // Subscribe to real-time changes
   useEffect(() => {
-    if (!projectId) return;
+    console.log(`Setting up sync subscription for project ${projectId}`);
+    
+    const handleSyncEvent = (event: SyncEvent) => {
+      console.log('Received sync event:', event);
+      setLastSyncTime(new Date());
+      // Emit custom event for components to listen to
+      window.dispatchEvent(new CustomEvent('mindmap-sync', { detail: event }));
+    };
 
-    const unsubscribe = mindmapSyncService.subscribeToChanges(
-      projectId,
-      (event: SyncEvent) => {
-        console.log('Sync event received:', event);
-        setSyncState(prev => ({
-          ...prev,
-          lastSyncTime: new Date(),
-          status: 'synced'
-        }));
+    // Clean up any existing subscription before creating a new one
+    if (cleanupRef.current) {
+      cleanupRef.current();
+    }
+
+    // Subscribe to changes
+    const cleanup = mindmapSyncService.subscribeToChanges(projectId, handleSyncEvent);
+    cleanupRef.current = cleanup;
+
+    // Cleanup function
+    return () => {
+      console.log(`Cleaning up sync subscription for project ${projectId}`);
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
       }
-    );
-
-    return unsubscribe;
+    };
   }, [projectId]);
 
-  const syncMindmapToFeatures = useCallback(async (
-    mindmapId: string,
-    updatedNodes: MindmapNode[]
-  ) => {
-    if (!syncState.isOnline) {
-      toast({
-        title: "Offline",
-        description: "Changes will sync when you're back online",
-        variant: "default"
-      });
-      return;
-    }
-
-    setSyncState(prev => ({ ...prev, status: 'syncing' }));
-
-    try {
-      await mindmapSyncService.syncMindmapToFeatures(mindmapId, updatedNodes);
-      setSyncState(prev => ({
-        ...prev,
-        status: 'synced',
-        lastSyncTime: new Date(),
-        conflictCount: 0
-      }));
-
-      toast({
-        title: "Synced",
-        description: "Mindmap changes saved to features",
-      });
-    } catch (error) {
-      console.error('Sync failed:', error);
-      setSyncState(prev => ({
-        ...prev,
-        status: 'error',
-        conflictCount: prev.conflictCount + 1
-      }));
-
-      toast({
-        title: "Sync Error",
-        description: "Failed to sync mindmap changes",
-        variant: "destructive"
-      });
-    }
-  }, [syncState.isOnline]);
-
-  const syncFeaturesToMindmap = useCallback(async (
-    projectId: string,
-    updatedFeatures: Feature[]
-  ) => {
-    if (!syncState.isOnline) {
-      return;
-    }
-
-    setSyncState(prev => ({ ...prev, status: 'syncing' }));
-
-    try {
-      await mindmapSyncService.syncFeaturesToMindmap(projectId, updatedFeatures);
-      setSyncState(prev => ({
-        ...prev,
-        status: 'synced',
-        lastSyncTime: new Date(),
-        conflictCount: 0
-      }));
-    } catch (error) {
-      console.error('Features to mindmap sync failed:', error);
-      setSyncState(prev => ({
-        ...prev,
-        status: 'error',
-        conflictCount: prev.conflictCount + 1
-      }));
-    }
-  }, [syncState.isOnline]);
-
-  const retrySync = useCallback(() => {
-    setSyncState(prev => ({
-      ...prev,
-      status: 'synced',
-      conflictCount: 0
-    }));
-
-    toast({
-      title: "Sync Reset",
-      description: "Sync status cleared. Try your changes again.",
-    });
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (cleanupRef.current) {
+        cleanupRef.current();
+      }
+    };
   }, []);
 
   return {
-    syncState,
+    syncStatus,
+    lastSyncTime,
     syncMindmapToFeatures,
-    syncFeaturesToMindmap,
-    retrySync
+    syncFeaturesToMindmap
   };
 };

@@ -1,4 +1,5 @@
 
+
 import { supabase } from '@/integrations/supabase/client';
 import type { Feature } from '@/hooks/useFeatures';
 import type { Json } from '@/integrations/supabase/types';
@@ -87,6 +88,7 @@ const jsonToNode = (json: Json): MindmapNode => {
 
 export class MindmapSyncService {
   private eventEmitter = new EventTarget();
+  private activeSubscriptions = new Map<string, () => void>();
 
   // Sync mindmap changes to features
   async syncMindmapToFeatures(
@@ -136,30 +138,63 @@ export class MindmapSyncService {
     }
   }
 
-  // Real-time subscription to changes
-  subscribeToChanges(projectId: string, callback: (event: SyncEvent) => void) {
+  // Real-time subscription to changes with proper cleanup
+  subscribeToChanges(projectId: string, callback: (event: SyncEvent) => void): () => void {
+    // Clean up any existing subscription for this project
+    this.unsubscribeFromProject(projectId);
+
+    // Create a single channel for this project
+    const channel = supabase.channel(`project-sync-${projectId}`);
+    
     // Subscribe to mindmap changes
-    const mindmapSubscription = supabase
-      .channel(`mindmap-${projectId}`)
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'mindmaps', filter: `project_id=eq.${projectId}` },
-        (payload) => callback({ type: 'mindmap', payload })
-      )
-      .subscribe();
+    channel.on('postgres_changes',
+      { event: '*', schema: 'public', table: 'mindmaps', filter: `project_id=eq.${projectId}` },
+      (payload) => {
+        console.log('Mindmap change detected:', payload);
+        callback({ type: 'mindmap', payload });
+      }
+    );
 
     // Subscribe to features changes
-    const featuresSubscription = supabase
-      .channel(`features-${projectId}`)
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'features', filter: `project_id=eq.${projectId}` },
-        (payload) => callback({ type: 'features', payload })
-      )
-      .subscribe();
+    channel.on('postgres_changes',
+      { event: '*', schema: 'public', table: 'features', filter: `project_id=eq.${projectId}` },
+      (payload) => {
+        console.log('Features change detected:', payload);
+        callback({ type: 'features', payload });
+      }
+    );
 
-    return () => {
-      mindmapSubscription.unsubscribe();
-      featuresSubscription.unsubscribe();
+    // Subscribe to the channel
+    channel.subscribe((status) => {
+      console.log(`Subscription status for project ${projectId}:`, status);
+    });
+
+    // Create cleanup function
+    const cleanup = () => {
+      console.log(`Cleaning up subscription for project ${projectId}`);
+      channel.unsubscribe();
+      this.activeSubscriptions.delete(projectId);
     };
+
+    // Store the cleanup function
+    this.activeSubscriptions.set(projectId, cleanup);
+
+    return cleanup;
+  }
+
+  // Clean up subscription for a specific project
+  private unsubscribeFromProject(projectId: string): void {
+    const existingCleanup = this.activeSubscriptions.get(projectId);
+    if (existingCleanup) {
+      existingCleanup();
+    }
+  }
+
+  // Clean up all subscriptions
+  public cleanup(): void {
+    console.log('Cleaning up all MindmapSyncService subscriptions');
+    this.activeSubscriptions.forEach((cleanup) => cleanup());
+    this.activeSubscriptions.clear();
   }
 
   // Private helper methods
@@ -328,3 +363,4 @@ export class MindmapSyncService {
 }
 
 export const mindmapSyncService = new MindmapSyncService();
+
