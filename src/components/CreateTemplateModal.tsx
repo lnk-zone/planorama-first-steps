@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,10 +25,10 @@ interface CreateTemplateModalProps {
 const CreateTemplateModal = ({ isOpen, onClose, projectData }: CreateTemplateModalProps) => {
   const { categories, createTemplate } = useEnhancedTemplates();
   const [formData, setFormData] = useState<CreateTemplateData>({
-    name: projectData?.name || '',
-    description: projectData?.description || '',
+    name: '',
+    description: '',
     category: '',
-    features: projectData?.features || [],
+    features: [],
     tags: [],
     difficulty_level: 'beginner',
     estimated_hours: undefined,
@@ -36,6 +36,25 @@ const CreateTemplateModal = ({ isOpen, onClose, projectData }: CreateTemplateMod
   });
   const [newTag, setNewTag] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Initialize form data when projectData changes
+  useEffect(() => {
+    if (projectData) {
+      console.log('Initializing form with project data:', projectData);
+      console.log('Project features count:', projectData.features?.length || 0);
+      
+      setFormData({
+        name: projectData.name || '',
+        description: projectData.description || '',
+        category: '',
+        features: projectData.features || [],
+        tags: [],
+        difficulty_level: 'beginner',
+        estimated_hours: undefined,
+        is_public: false
+      });
+    }
+  }, [projectData]);
 
   const handleAddTag = () => {
     if (newTag.trim() && !formData.tags?.includes(newTag.trim())) {
@@ -57,6 +76,10 @@ const CreateTemplateModal = ({ isOpen, onClose, projectData }: CreateTemplateMod
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('Submitting template with data:', formData);
+    console.log('Features being submitted:', formData.features);
+    console.log('Number of features:', Array.isArray(formData.features) ? formData.features.length : 'not an array');
+    
     if (!formData.name.trim() || !formData.category) {
       toast({
         title: "Validation Error",
@@ -68,13 +91,16 @@ const CreateTemplateModal = ({ isOpen, onClose, projectData }: CreateTemplateMod
 
     setIsSubmitting(true);
     try {
-      await createTemplate(formData);
+      const result = await createTemplate(formData);
+      console.log('Template created successfully:', result);
+      
       toast({
         title: "Template Created",
         description: "Your template has been created successfully.",
       });
       onClose();
     } catch (error) {
+      console.error('Error creating template:', error);
       toast({
         title: "Error",
         description: "Failed to create template. Please try again.",
@@ -249,9 +275,21 @@ const CreateTemplateModal = ({ isOpen, onClose, projectData }: CreateTemplateMod
                 {formData.features.map((feature: any, index: number) => (
                   <div key={index} className="text-sm text-gray-700 mb-1">
                     • {feature.title || `Feature ${index + 1}`}
+                    {feature.description && (
+                      <span className="text-gray-500 ml-2">- {feature.description}</span>
+                    )}
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Debug info in development */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="space-y-2 p-3 bg-gray-100 rounded text-xs">
+              <div>Debug Info:</div>
+              <div>Features Array Length: {Array.isArray(formData.features) ? formData.features.length : 'not array'}</div>
+              <div>Features Data: {JSON.stringify(formData.features, null, 2)}</div>
             </div>
           )}
 

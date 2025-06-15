@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -28,11 +29,21 @@ interface Project {
   updated_at: string;
 }
 
+interface TemplateProjectData {
+  name: string;
+  description: string;
+  features: {
+    title: string;
+    description: string;
+    priority: string;
+  }[];
+}
+
 const Projects = () => {
   const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
-  const [templateProject, setTemplateProject] = useState<Project | null>(null);
+  const [templateProjectData, setTemplateProjectData] = useState<TemplateProjectData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -101,6 +112,8 @@ const Projects = () => {
 
   const handleSaveAsTemplate = async (project: Project) => {
     try {
+      console.log('Starting template creation for project:', project.id);
+      
       // Fetch project features to include in template
       const { data: features, error } = await supabase
         .from('features')
@@ -115,11 +128,19 @@ const Projects = () => {
       }
 
       console.log('Fetched features for template:', features);
+      console.log('Number of features found:', features?.length || 0);
 
-      setTemplateProject({
-        ...project,
+      // Create proper template data structure
+      const templateData: TemplateProjectData = {
+        name: project.title,
+        description: project.description || '',
         features: features || []
-      } as any);
+      };
+
+      console.log('Template data prepared:', templateData);
+      console.log('Features in template data:', templateData.features.length);
+
+      setTemplateProjectData(templateData);
       setShowTemplateModal(true);
     } catch (error) {
       console.error('Error preparing template data:', error);
@@ -380,13 +401,9 @@ const Projects = () => {
           isOpen={showTemplateModal}
           onClose={() => {
             setShowTemplateModal(false);
-            setTemplateProject(null);
+            setTemplateProjectData(null);
           }}
-          projectData={templateProject ? {
-            name: templateProject.title,
-            description: templateProject.description || '',
-            features: (templateProject as any).features || []
-          } : undefined}
+          projectData={templateProjectData}
         />
       </div>
     </AppLayout>
