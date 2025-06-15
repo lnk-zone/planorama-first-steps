@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useFeatures } from '@/hooks/useFeatures';
@@ -8,6 +9,7 @@ import DraggableFeatureList from '@/components/DraggableFeatureList';
 import BulkFeatureOperations from '@/components/BulkFeatureOperations';
 import AdvancedFeatureFilters, { type FeatureFilters } from '@/components/AdvancedFeatureFilters';
 import AddEditFeatureModal from '@/components/AddEditFeatureModal';
+import AddChildFeatureModal from '@/components/AddChildFeatureModal';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -21,12 +23,14 @@ import {
   Settings2
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import type { Feature } from '@/hooks/useFeatures';
 
 const FeaturesPage = () => {
   const { id } = useParams<{ id: string }>();
-  const { features, loading, addFeature, updateFeature, deleteFeature } = useFeatures(id || '');
+  const { features, loading, addFeature, addChildFeature, updateFeature, deleteFeature, reorderFeatures } = useFeatures(id || '');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [editingFeature, setEditingFeature] = useState(null);
+  const [editingFeature, setEditingFeature] = useState<Feature | null>(null);
+  const [parentFeatureForChild, setParentFeatureForChild] = useState<Feature | null>(null);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'hierarchy' | 'draggable'>('list');
@@ -101,12 +105,9 @@ const FeaturesPage = () => {
     return features.filter(feature => selectedFeatures.includes(feature.id));
   };
 
-  const handleReorderFeatures = async (reorderedFeatures: any[]) => {
+  const handleReorderFeatures = async (reorderedFeatures: Feature[]) => {
     try {
-      // Update each feature's order_index
-      for (const feature of reorderedFeatures) {
-        await updateFeature(feature.id, { order_index: feature.order_index });
-      }
+      await reorderFeatures(reorderedFeatures);
       toast({
         title: "Features reordered",
         description: "Feature order has been updated successfully.",
@@ -120,7 +121,7 @@ const FeaturesPage = () => {
     }
   };
 
-  const handleBulkUpdate = async (updates: any) => {
+  const handleBulkUpdate = async (updates: Partial<Feature>) => {
     try {
       for (const featureId of selectedFeatures) {
         await updateFeature(featureId, updates);
@@ -175,6 +176,23 @@ const FeaturesPage = () => {
     }
   };
 
+  const handleAddChildFeature = async (parentId: string, featureData: any) => {
+    try {
+      await addChildFeature(parentId, featureData);
+      setParentFeatureForChild(null);
+      toast({
+        title: "Child feature added",
+        description: "New child feature has been added successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add child feature. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleEditFeature = async (featureData: any) => {
     if (!editingFeature) return;
     
@@ -208,6 +226,10 @@ const FeaturesPage = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const handleAddChildClick = (parentFeature: Feature) => {
+    setParentFeatureForChild(parentFeature);
   };
 
   if (loading) {
@@ -354,12 +376,7 @@ const FeaturesPage = () => {
                         feature={feature}
                         onEdit={(feature) => setEditingFeature(feature)}
                         onDelete={handleDeleteFeature}
-                        onAddChild={() => {
-                          toast({
-                            title: "Coming soon",
-                            description: "Child features will be available soon.",
-                          });
-                        }}
+                        onAddChild={handleAddChildClick}
                       />
                     </div>
                   </div>
@@ -379,12 +396,7 @@ const FeaturesPage = () => {
               <FeatureHierarchy
                 features={filteredFeatures}
                 onFeatureSelect={(feature) => console.log('Selected:', feature)}
-                onAddChild={() => {
-                  toast({
-                    title: "Coming soon",
-                    description: "Child features will be available soon.",
-                  });
-                }}
+                onAddChild={handleAddChildClick}
                 onEdit={(feature) => setEditingFeature(feature)}
                 onDelete={handleDeleteFeature}
               />
@@ -404,12 +416,7 @@ const FeaturesPage = () => {
                 onReorder={handleReorderFeatures}
                 onEdit={(feature) => setEditingFeature(feature)}
                 onDelete={handleDeleteFeature}
-                onAddChild={() => {
-                  toast({
-                    title: "Coming soon",
-                    description: "Child features will be available soon.",
-                  });
-                }}
+                onAddChild={handleAddChildClick}
               />
             )}
           </TabsContent>
@@ -427,6 +434,13 @@ const FeaturesPage = () => {
           feature={editingFeature}
           onClose={() => setEditingFeature(null)}
           onSave={handleEditFeature}
+        />
+
+        <AddChildFeatureModal
+          isOpen={!!parentFeatureForChild}
+          parentFeature={parentFeatureForChild}
+          onClose={() => setParentFeatureForChild(null)}
+          onSave={handleAddChildFeature}
         />
 
         <BulkFeatureOperations

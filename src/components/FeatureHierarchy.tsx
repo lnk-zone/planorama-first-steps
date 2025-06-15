@@ -10,7 +10,7 @@ import type { Feature } from '@/hooks/useFeatures';
 interface FeatureHierarchyProps {
   features: Feature[];
   onFeatureSelect: (feature: Feature) => void;
-  onAddChild: (parentId: string) => void;
+  onAddChild: (parentFeature: Feature) => void;
   onEdit: (feature: Feature) => void;
   onDelete: (featureId: string) => void;
 }
@@ -37,22 +37,25 @@ const FeatureHierarchy = ({ features, onFeatureSelect, onAddChild, onEdit, onDel
       });
     });
 
-    // Build parent-child relationships
+    // Build parent-child relationships and set levels
+    const setChildLevel = (node: FeatureNode, level: number) => {
+      node.level = level;
+      node.children.forEach(child => setChildLevel(child, level + 1));
+    };
+
     features.forEach(feature => {
       const node = featureMap.get(feature.id)!;
       
-      if (feature.parent_id) {
-        const parent = featureMap.get(feature.parent_id);
-        if (parent) {
-          parent.children.push(node);
-          node.level = parent.level + 1;
-        } else {
-          rootFeatures.push(node);
-        }
+      if (feature.parent_id && featureMap.has(feature.parent_id)) {
+        const parent = featureMap.get(feature.parent_id)!;
+        parent.children.push(node);
       } else {
         rootFeatures.push(node);
       }
     });
+
+    // Set correct levels for all nodes
+    rootFeatures.forEach(root => setChildLevel(root, 0));
 
     return rootFeatures;
   };
@@ -91,28 +94,27 @@ const FeatureHierarchy = ({ features, onFeatureSelect, onAddChild, onEdit, onDel
   const renderFeatureNode = (node: FeatureNode): JSX.Element => {
     const hasChildren = node.children.length > 0;
     const isExpanded = expandedNodes.has(node.id);
+    const paddingLeft = node.level * 20;
 
     return (
       <div key={node.id} className="space-y-2">
-        <Card className="hover:shadow-md transition-shadow">
+        <Card className="hover:shadow-md transition-shadow" style={{ marginLeft: `${paddingLeft}px` }}>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2" style={{ paddingLeft: `${node.level * 20}px` }}>
+              <div className="flex items-center space-x-2 flex-1">
                 {hasChildren ? (
-                  <CollapsibleTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0"
-                      onClick={() => toggleExpanded(node.id)}
-                    >
-                      {isExpanded ? (
-                        <ChevronDown className="h-4 w-4" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </CollapsibleTrigger>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    onClick={() => toggleExpanded(node.id)}
+                  >
+                    {isExpanded ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                  </Button>
                 ) : (
                   <div className="w-6" />
                 )}
@@ -131,6 +133,11 @@ const FeatureHierarchy = ({ features, onFeatureSelect, onAddChild, onEdit, onDel
                     <Badge className={getStatusColor(node.status)} variant="outline">
                       {node.status || 'planned'}
                     </Badge>
+                    {hasChildren && (
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                        {node.children.length} child{node.children.length !== 1 ? 'ren' : ''}
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </div>
@@ -141,14 +148,16 @@ const FeatureHierarchy = ({ features, onFeatureSelect, onAddChild, onEdit, onDel
                   size="sm"
                   onClick={() => onEdit(node)}
                   className="h-8 w-8 p-0"
+                  title="Edit feature"
                 >
                   <Edit className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => onAddChild(node.id)}
+                  onClick={() => onAddChild(node)}
                   className="h-8 w-8 p-0"
+                  title="Add child feature"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -157,6 +166,7 @@ const FeatureHierarchy = ({ features, onFeatureSelect, onAddChild, onEdit, onDel
                   size="sm"
                   onClick={() => onDelete(node.id)}
                   className="h-8 w-8 p-0 text-red-600 hover:text-red-800"
+                  title="Delete feature"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -166,19 +176,17 @@ const FeatureHierarchy = ({ features, onFeatureSelect, onAddChild, onEdit, onDel
           
           {node.description && (
             <CardContent className="pt-0">
-              <p className="text-sm text-gray-600" style={{ paddingLeft: `${(node.level * 20) + 32}px` }}>
+              <p className="text-sm text-gray-600">
                 {node.description}
               </p>
             </CardContent>
           )}
         </Card>
 
-        {hasChildren && (
-          <Collapsible open={isExpanded} onOpenChange={() => toggleExpanded(node.id)}>
-            <CollapsibleContent className="space-y-2">
-              {node.children.map(child => renderFeatureNode(child))}
-            </CollapsibleContent>
-          </Collapsible>
+        {hasChildren && isExpanded && (
+          <div className="space-y-2">
+            {node.children.map(child => renderFeatureNode(child))}
+          </div>
         )}
       </div>
     );
@@ -186,7 +194,13 @@ const FeatureHierarchy = ({ features, onFeatureSelect, onAddChild, onEdit, onDel
 
   return (
     <div className="space-y-4">
-      {hierarchy.map(node => renderFeatureNode(node))}
+      {hierarchy.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-gray-500">No features to display in hierarchy view</p>
+        </div>
+      ) : (
+        hierarchy.map(node => renderFeatureNode(node))
+      )}
     </div>
   );
 };
