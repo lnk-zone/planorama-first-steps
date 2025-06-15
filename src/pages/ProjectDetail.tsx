@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -6,10 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Settings, Share2, Download, Zap, FileText, Users, Activity } from 'lucide-react';
+import { ArrowLeft, Settings, Share2, Download, Zap, FileText, Users, Activity, Layers, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useFeatures } from '@/hooks/useFeatures';
 import { toast } from '@/hooks/use-toast';
+import FeatureCard from '@/components/FeatureCard';
+import AddEditFeatureModal from '@/components/AddEditFeatureModal';
 
 interface Project {
   id: string;
@@ -23,8 +25,11 @@ interface Project {
 const ProjectDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const { features, loading: featuresLoading, addFeature, updateFeature, deleteFeature } = useFeatures(id || '');
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingFeature, setEditingFeature] = useState(null);
 
   useEffect(() => {
     if (id && user) {
@@ -57,6 +62,58 @@ const ProjectDetail = () => {
       console.error('Error fetching project:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddFeature = async (featureData: any) => {
+    try {
+      await addFeature(featureData);
+      setIsAddModalOpen(false);
+      toast({
+        title: "Feature added",
+        description: "New feature has been added successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add feature. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditFeature = async (featureData: any) => {
+    if (!editingFeature) return;
+    
+    try {
+      await updateFeature(editingFeature.id, featureData);
+      setEditingFeature(null);
+      toast({
+        title: "Feature updated",
+        description: "Feature has been updated successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update feature. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteFeature = async (featureId: string) => {
+    try {
+      await deleteFeature(featureId);
+      toast({
+        title: "Feature deleted",
+        description: "Feature has been deleted successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete feature. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -138,8 +195,16 @@ const ProjectDetail = () => {
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">
-        <Tabs defaultValue="mindmap" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+        <Tabs defaultValue="planning" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="planning" className="flex items-center">
+              <Activity className="h-4 w-4 mr-2" />
+              Planning
+            </TabsTrigger>
+            <TabsTrigger value="features" className="flex items-center">
+              <Layers className="h-4 w-4 mr-2" />
+              Features
+            </TabsTrigger>
             <TabsTrigger value="mindmap" className="flex items-center">
               <Activity className="h-4 w-4 mr-2" />
               Mindmap
@@ -157,6 +222,123 @@ const ProjectDetail = () => {
               Collaborate
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="planning" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Project Planning Overview</CardTitle>
+                <CardDescription>
+                  Track your project's progress and manage features effectively
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Feature Stats */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">Feature Progress</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm">Total Features:</span>
+                        <Badge variant="outline">{features.length}</Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm">Planned:</span>
+                        <Badge variant="outline">{features.filter(f => f.status === 'planned').length}</Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm">In Progress:</span>
+                        <Badge variant="outline">{features.filter(f => f.status === 'in-progress').length}</Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm">Completed:</span>
+                        <Badge variant="outline">{features.filter(f => f.status === 'completed').length}</Badge>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quick Actions */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">Quick Actions</h3>
+                    <div className="space-y-2">
+                      <Button onClick={() => setIsAddModalOpen(true)} className="w-full justify-start">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Feature
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start" disabled>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Generate PRD
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start" disabled>
+                        <Download className="h-4 w-4 mr-2" />
+                        Export Project
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Recent Activity */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">Recent Activity</h3>
+                    <div className="text-sm text-gray-500">
+                      <p>Project created {new Date(project.created_at).toLocaleDateString()}</p>
+                      <p>Last updated {new Date(project.updated_at).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="features" className="space-y-6">
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Features</h2>
+                <p className="text-gray-600">Manage your project features and their requirements</p>
+              </div>
+              <Button onClick={() => setIsAddModalOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Feature
+              </Button>
+            </div>
+
+            {featuresLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+              </div>
+            ) : features.length === 0 ? (
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center py-8">
+                    <Layers className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No features yet</h3>
+                    <p className="text-gray-600 mb-6">
+                      Start by adding your first feature to define what you want to build.
+                    </p>
+                    <Button onClick={() => setIsAddModalOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Your First Feature
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {features.map(feature => (
+                  <FeatureCard
+                    key={feature.id}
+                    feature={feature}
+                    onEdit={(feature) => setEditingFeature(feature)}
+                    onDelete={handleDeleteFeature}
+                    onAddChild={() => {
+                      toast({
+                        title: "Coming soon",
+                        description: "Child features will be available soon.",
+                      });
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </TabsContent>
 
           <TabsContent value="mindmap" className="space-y-6">
             <Card>
@@ -280,6 +462,20 @@ const ProjectDetail = () => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Modals */}
+        <AddEditFeatureModal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          onSave={handleAddFeature}
+        />
+
+        <AddEditFeatureModal
+          isOpen={!!editingFeature}
+          feature={editingFeature}
+          onClose={() => setEditingFeature(null)}
+          onSave={handleEditFeature}
+        />
       </div>
     </div>
   );
