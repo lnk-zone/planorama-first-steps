@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { FolderPlus, Search, Filter, Calendar, Edit, Trash2, Eye } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { format } from 'date-fns';
+import { useEnhancedTemplates } from '@/hooks/useEnhancedTemplates';
+import type { CreateProjectData } from '@/components/CreateProjectModal';
 
 interface Project {
   id: string;
@@ -36,6 +38,7 @@ const Projects = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const navigate = useNavigate();
   const { showSuccess, showError } = useNotifications();
+  const { applyTemplate } = useEnhancedTemplates();
 
   useEffect(() => {
     fetchProjects();
@@ -65,11 +68,14 @@ const Projects = () => {
 
   const getProjectTypeLabel = (type: string) => {
     const types = {
-      'web-app': 'Web App',
-      'mobile-app': 'Mobile App',
+      'web_app': 'Web App',
+      'mobile_app': 'Mobile App',
       'saas': 'SaaS Platform',
-      'desktop-app': 'Desktop App',
+      'ecommerce': 'E-commerce',
+      'cms': 'CMS',
       'api': 'API/Backend',
+      'dashboard': 'Dashboard',
+      'portfolio': 'Portfolio/Blog',
       'other': 'Other',
     };
     return types[type as keyof typeof types] || type;
@@ -119,8 +125,38 @@ const Projects = () => {
     }
   };
 
-  const handleCreateProject = () => {
-    fetchProjects();
+  const handleCreateProject = async (projectData: CreateProjectData) => {
+    if (!user) return;
+
+    setLoading(true);
+    try {
+      const { data: project, error } = await supabase
+        .from('projects')
+        .insert([{
+          user_id: user.id,
+          title: projectData.title,
+          description: projectData.description,
+          project_type: projectData.project_type || 'other'
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Apply template if selected
+      if (projectData.template) {
+        await applyTemplate(projectData.template.id, project.id);
+      }
+
+      showSuccess('Project created successfully');
+      setShowCreateModal(false);
+      fetchProjects(); // Refresh project list
+    } catch (error) {
+      console.error('Error creating project:', error);
+      showError('Failed to create project. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleEditSuccess = () => {
@@ -133,7 +169,7 @@ const Projects = () => {
     const descriptionMatch = project.description?.toLowerCase().includes(searchTermLower);
     const statusMatch = statusFilter === 'all' || project.status === statusFilter;
 
-    return titleMatch || descriptionMatch && statusMatch;
+    return (titleMatch || descriptionMatch) && statusMatch;
   });
 
   if (loading) {
@@ -285,7 +321,7 @@ const Projects = () => {
         <CreateProjectModal
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
-          onSuccess={handleCreateProject}
+          onSubmit={handleCreateProject}
         />
 
         {/* Edit Project Modal */}
