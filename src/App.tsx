@@ -21,7 +21,6 @@ import TemplatesPage from "./pages/TemplatesPage";
 import ProjectPlanningPage from "./pages/ProjectPlanningPage";
 import FeaturesPage from "./pages/FeaturesPage";
 import UserStoriesPage from "./pages/UserStoriesPage";
-import MindmapFeaturesPage from "./pages/MindmapFeaturesPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -72,11 +71,6 @@ const App = () => (
             <Route path="/projects/:id/features" element={
               <ProtectedRoute>
                 <FeaturesPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/projects/:id/mindmap" element={
-              <ProtectedRoute>
-                <MindmapFeaturesPage />
               </ProtectedRoute>
             } />
             <Route path="/projects/:id/features/:featureId/stories" element={

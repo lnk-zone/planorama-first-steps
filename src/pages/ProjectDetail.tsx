@@ -292,12 +292,6 @@ const ProjectDetail = () => {
                         <Plus className="h-4 w-4 mr-2" />
                         Add Feature
                       </Button>
-                      <Button variant="outline" className="w-full justify-start" asChild>
-                        <Link to={`/projects/${id}/mindmap`}>
-                          <Activity className="h-4 w-4 mr-2" />
-                          View Interactive Mindmap
-                        </Link>
-                      </Button>
                       <Button variant="outline" className="w-full justify-start" disabled>
                         <FileText className="h-4 w-4 mr-2" />
                         Generate PRD
@@ -377,34 +371,31 @@ const ProjectDetail = () => {
           <TabsContent value="mindmap" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>External Mindmap Integration</CardTitle>
+                <CardTitle>Project Mindmap</CardTitle>
                 <CardDescription>
-                  Connect with external mindmap tools and sync your features automatically.
+                  Visualize your app features and user flows. Create an interactive mindmap to plan your project.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="border-2 border-dashed border-gray-200 rounded-lg p-12 text-center">
                   <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    External Tool Integration
+                    AI-Powered Mindmap Generation
                   </h3>
                   <p className="text-gray-600 mb-6">
-                    Connect your project with external mindmap tools like Miro, Lucidchart, or Figma. 
-                    Features sync automatically between platforms.
+                    Generate a comprehensive mindmap structure using AI, or create one manually.
+                    The mindmap will integrate with your features and user stories.
                   </p>
                   <div className="flex gap-2 justify-center">
-                    <Button asChild>
-                      <Link to={`/projects/${id}/mindmap`}>
-                        <Activity className="h-4 w-4 mr-2" />
-                        Configure Integration
-                      </Link>
-                    </Button>
                     <Button 
-                      variant="outline"
                       onClick={() => setIsAIGenerationModalOpen(true)}
+                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
                     >
                       <Zap className="h-4 w-4 mr-2" />
                       Generate with AI
+                    </Button>
+                    <Button variant="outline" disabled>
+                      Create Manually
                     </Button>
                   </div>
                 </div>
