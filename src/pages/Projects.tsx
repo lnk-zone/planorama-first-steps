@@ -15,7 +15,6 @@ import { FolderPlus, Search, Filter, Calendar, Edit, Trash2, Eye, Save } from 'l
 import { useNotifications } from '@/hooks/useNotifications';
 import { format } from 'date-fns';
 import { useEnhancedTemplates } from '@/hooks/useEnhancedTemplates';
-import { useFeatures } from '@/hooks/useFeatures';
 import type { CreateProjectData } from '@/components/CreateProjectModal';
 
 interface Project {
@@ -43,7 +42,6 @@ const Projects = () => {
   const navigate = useNavigate();
   const { showSuccess, showError } = useNotifications();
   const { applyTemplate } = useEnhancedTemplates();
-  const { features } = useFeatures();
 
   useEffect(() => {
     fetchProjects();
