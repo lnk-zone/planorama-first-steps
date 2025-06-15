@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { TransformWrapper, TransformComponent, useControls } from 'react-zoom-pan-pinch';
+import NodeRenderer from '../NodeRenderer';
 
 export interface MindmapNode {
   id: string;
@@ -28,14 +29,16 @@ export interface ViewportState {
   scale: number;
 }
 
-export interface MindmapVisualizationProps {
-  mindmap: MindmapStructure;
-  width?: number;
-  height?: number;
-  selectedNodeId?: string;
-  onNodeClick?: (node: MindmapNode) => void;
-  onViewportChange?: (viewport: ViewportState) => void;
-}
+  export interface MindmapVisualizationProps {
+    mindmap: MindmapStructure;
+    width?: number;
+    height?: number;
+    selectedNodeId?: string;
+    onNodeClick?: (node: MindmapNode) => void;
+    onAddChild?: (node: MindmapNode) => void;
+    onEditNode?: (node: MindmapNode) => void;
+    onViewportChange?: (viewport: ViewportState) => void;
+  }
 
 const defaultViewport: ViewportState = { x: 0, y: 0, scale: 1 };
 
@@ -57,6 +60,8 @@ const MindmapVisualization: React.FC<MindmapVisualizationProps> = ({
   height = 600,
   selectedNodeId,
   onNodeClick,
+  onAddChild,
+  onEditNode,
   onViewportChange
 }) => {
   const [viewport, setViewport] = useState<ViewportState>(defaultViewport);
@@ -100,48 +105,54 @@ const MindmapVisualization: React.FC<MindmapVisualizationProps> = ({
 
   const renderNode = (node: MindmapNode) => {
     const { x, y } = node.position;
-    const radius = node.style?.size === 'large' ? 40 : node.style?.size === 'small' ? 20 : 30;
-    const color = node.style?.color || '#3b82f6';
-    const isSelected = node.id === selectedNodeId;
     return (
-      <g key={node.id} transform={`translate(${x}, ${y})`} onClick={() => handleNodeClick(node)} className="cursor-pointer">
-        <circle r={radius} fill={color} stroke={isSelected ? '#000' : '#fff'} strokeWidth={2} />
-        <text x={0} y={radius + 14} textAnchor="middle" className="text-xs fill-gray-800">
-          {node.title}
-        </text>
-      </g>
+      <div
+        key={node.id}
+        style={{ position: 'absolute', left: x, top: y, transform: 'translate(-50%, -50%)' }}
+        onClick={() => handleNodeClick(node)}
+      >
+        <NodeRenderer
+          node={node}
+          scale={viewport.scale}
+          onAddChild={onAddChild}
+          onEdit={onEditNode}
+        />
+      </div>
     );
   };
 
   return (
     <div style={{ width, height }} className="relative border rounded bg-white overflow-hidden">
-      <TransformWrapper
-        onTransformed={handleTransformed}
-        minScale={0.25}
-        initialScale={1}
-      >
-        <ControlButtons />
-        <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }} contentStyle={{ width: '100%', height: '100%' }}>
-          <svg width={width} height={height} className="select-none">
-            {visibleConnections.map(c => {
-              const from = nodeMap.get(c.from)!;
-              const to = nodeMap.get(c.to)!;
-              return (
-                <line
-                  key={`${c.from}-${c.to}`}
-                  x1={from.position.x}
-                  y1={from.position.y}
-                  x2={to.position.x}
-                  y2={to.position.y}
-                  stroke="#999"
-                />
-              );
-            })}
+        <TransformWrapper
+          onTransformed={handleTransformed}
+          minScale={0.25}
+          initialScale={1}
+        >
+          <ControlButtons />
+          <TransformComponent
+            wrapperStyle={{ width: '100%', height: '100%', position: 'relative' }}
+            contentStyle={{ width: '100%', height: '100%' }}
+          >
+            <svg width={width} height={height} className="absolute inset-0 select-none">
+              {visibleConnections.map(c => {
+                const from = nodeMap.get(c.from)!;
+                const to = nodeMap.get(c.to)!;
+                return (
+                  <line
+                    key={`${c.from}-${c.to}`}
+                    x1={from.position.x}
+                    y1={from.position.y}
+                    x2={to.position.x}
+                    y2={to.position.y}
+                    stroke="#999"
+                  />
+                );
+              })}
+            </svg>
             {visibleNodes.map(renderNode)}
-          </svg>
-        </TransformComponent>
-      </TransformWrapper>
-    </div>
+          </TransformComponent>
+        </TransformWrapper>
+      </div>
   );
 };
 
