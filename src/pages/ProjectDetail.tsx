@@ -292,6 +292,12 @@ const ProjectDetail = () => {
                         <Plus className="h-4 w-4 mr-2" />
                         Add Feature
                       </Button>
+                      <Button variant="outline" className="w-full justify-start" asChild>
+                        <Link to={`/projects/${id}/mindmap`}>
+                          <Activity className="h-4 w-4 mr-2" />
+                          View Interactive Mindmap
+                        </Link>
+                      </Button>
                       <Button variant="outline" className="w-full justify-start" disabled>
                         <FileText className="h-4 w-4 mr-2" />
                         Generate PRD
@@ -371,31 +377,34 @@ const ProjectDetail = () => {
           <TabsContent value="mindmap" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Project Mindmap</CardTitle>
+                <CardTitle>Interactive Mindmap</CardTitle>
                 <CardDescription>
-                  Visualize your app features and user flows. Create an interactive mindmap to plan your project.
+                  Switch between visual mindmap and list views. Changes sync in real-time.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="border-2 border-dashed border-gray-200 rounded-lg p-12 text-center">
                   <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    AI-Powered Mindmap Generation
+                    Interactive Mindmap & Features
                   </h3>
                   <p className="text-gray-600 mb-6">
-                    Generate a comprehensive mindmap structure using AI, or create one manually.
-                    The mindmap will integrate with your features and user stories.
+                    View and edit your features in both visual mindmap and list formats. 
+                    Changes sync automatically between both views.
                   </p>
                   <div className="flex gap-2 justify-center">
+                    <Button asChild>
+                      <Link to={`/projects/${id}/mindmap`}>
+                        <Activity className="h-4 w-4 mr-2" />
+                        Open Interactive Mindmap
+                      </Link>
+                    </Button>
                     <Button 
+                      variant="outline"
                       onClick={() => setIsAIGenerationModalOpen(true)}
-                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
                     >
                       <Zap className="h-4 w-4 mr-2" />
                       Generate with AI
-                    </Button>
-                    <Button variant="outline" disabled>
-                      Create Manually
                     </Button>
                   </div>
                 </div>
