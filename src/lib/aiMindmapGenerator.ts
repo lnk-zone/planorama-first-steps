@@ -18,16 +18,16 @@ export interface GenerationResult {
   userStories: UserStory[];
 }
 
-export interface GenerationProgress {
+export interface GenerationProgressData {
   stage: 'analyzing' | 'generating_structure' | 'creating_features' | 'generating_stories' | 'complete';
   progress: number;
   currentAction: string;
 }
 
 export class AIMindmapGenerator {
-  private onProgress?: (progress: GenerationProgress) => void;
+  private onProgress?: (progress: GenerationProgressData) => void;
 
-  constructor(onProgress?: (progress: GenerationProgress) => void) {
+  constructor(onProgress?: (progress: GenerationProgressData) => void) {
     this.onProgress = onProgress;
   }
 
@@ -43,23 +43,13 @@ export class AIMindmapGenerator {
       
       this.updateProgress('generating_structure', 30, 'Generating mindmap structure with AI...');
 
-      const response = await fetch('/api/generate-mindmap', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          prompt,
-          projectDescription,
-          appType
-        }),
+      const { data: aiResponse, error } = await supabase.functions.invoke('generate-mindmap', {
+        body: { prompt }
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to generate mindmap');
+      if (error) {
+        throw new Error(`AI generation failed: ${error.message}`);
       }
-
-      const aiResponse = await response.json();
       
       this.updateProgress('creating_features', 60, 'Creating features from mindmap...');
 
@@ -86,7 +76,7 @@ export class AIMindmapGenerator {
     }
   }
 
-  private updateProgress(stage: GenerationProgress['stage'], progress: number, currentAction: string) {
+  private updateProgress(stage: GenerationProgressData['stage'], progress: number, currentAction: string) {
     if (this.onProgress) {
       this.onProgress({ stage, progress, currentAction });
     }
@@ -228,7 +218,9 @@ REQUIREMENTS:
 
   private async linkMindmapToFeatures(mindmapId: string, features: Feature[]): Promise<void> {
     const featureMap = features.reduce((acc, feature) => {
-      const nodeId = feature.metadata?.node_id;
+      // Safely access metadata properties
+      const metadata = feature.metadata as any;
+      const nodeId = metadata?.node_id;
       if (nodeId) {
         acc[nodeId] = feature.id;
       }

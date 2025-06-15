@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Zap, RefreshCw, Settings } from 'lucide-react';
-import { AIMindmapGenerator, type GenerationResult, type GenerationProgress } from '@/lib/aiMindmapGenerator';
+import { AIMindmapGenerator, type GenerationResult, type GenerationProgressData } from '@/lib/aiMindmapGenerator';
 import GenerationProgress from '@/components/GenerationProgress';
 import { toast } from '@/hooks/use-toast';
 
@@ -32,7 +32,7 @@ const AIMindmapGenerationModal: React.FC<AIMindmapGenerationModalProps> = ({
   const [appType, setAppType] = useState('web_app');
   const [complexity, setComplexity] = useState([2]); // 1=Simple, 2=Medium, 3=Complex
   const [isGenerating, setIsGenerating] = useState(false);
-  const [progress, setProgress] = useState<GenerationProgress | null>(null);
+  const [progress, setProgress] = useState<GenerationProgressData | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
