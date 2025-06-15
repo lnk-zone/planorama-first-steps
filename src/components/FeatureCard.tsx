@@ -1,7 +1,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Edit, Trash2, Plus, MessageSquare } from 'lucide-react';
+import { Edit, Trash2, Plus, MessageSquare, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import PriorityBadge from '@/components/ui/priority-badge';
 import StatusBadge from '@/components/ui/status-badge';
@@ -84,12 +84,20 @@ const FeatureCard = ({ feature, onEdit, onDelete, onAddChild }: FeatureCardProps
         </div>
       </CardHeader>
       {feature.description && (
-        <CardContent>
-          <p className="text-gray-600 leading-relaxed">
+        <CardContent className="pb-3">
+          <p className="text-gray-600 leading-relaxed mb-4">
             {feature.description}
           </p>
         </CardContent>
       )}
+      <div className="px-6 pb-4 flex justify-end">
+        <Link to={`/projects/${feature.project_id}/features/${feature.id}/stories`}>
+          <Button variant="outline" size="sm" className="text-sm">
+            <Eye className="h-4 w-4 mr-2" />
+            View User Stories
+          </Button>
+        </Link>
+      </div>
     </Card>
   );
 };
