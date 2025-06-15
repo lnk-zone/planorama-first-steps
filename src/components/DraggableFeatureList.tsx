@@ -11,7 +11,7 @@ interface DraggableFeatureListProps {
   onReorder: (features: Feature[]) => void;
   onEdit: (feature: Feature) => void;
   onDelete: (featureId: string) => void;
-  onAddChild: (parentId: string) => void;
+  onAddChild: (parentFeature: Feature) => void;
 }
 
 const DraggableFeatureList = ({ features, onReorder, onEdit, onDelete, onAddChild }: DraggableFeatureListProps) => {
@@ -131,7 +131,7 @@ const DraggableFeatureList = ({ features, onReorder, onEdit, onDelete, onAddChil
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => onAddChild(feature.id)}
+                  onClick={() => onAddChild(feature)}
                   className="h-8 w-8 p-0"
                 >
                   <Plus className="h-4 w-4" />
