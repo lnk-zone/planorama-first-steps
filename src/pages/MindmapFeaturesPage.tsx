@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useFeatures } from '@/hooks/useFeatures';
@@ -20,7 +19,7 @@ import type { MindmapNode } from '@/lib/mindmapSync';
 const MindmapFeaturesPage = () => {
   const { id } = useParams<{ id: string }>();
   const { features, loading, addFeature, updateFeature, deleteFeature } = useFeatures(id || '');
-  const { syncState, syncMindmapToFeatures, syncFeaturesToMindmap, retrySync } = useMindmapSync(id || '');
+  const { syncStatus, lastSyncTime, conflictCount, syncMindmapToFeatures, syncFeaturesToMindmap, retrySync } = useMindmapSync(id || '');
   
   const [currentView, setCurrentView] = useState<'mindmap' | 'list'>('mindmap');
   const [mindmapData, setMindmapData] = useState<any>(null);
@@ -57,10 +56,10 @@ const MindmapFeaturesPage = () => {
 
   // Sync features to mindmap when features change
   useEffect(() => {
-    if (id && features.length > 0) {
-      syncFeaturesToMindmap(id, features);
+    if (features.length > 0) {
+      syncFeaturesToMindmap(features);
     }
-  }, [features, id, syncFeaturesToMindmap]);
+  }, [features, syncFeaturesToMindmap]);
 
   const handleNodeClick = (node: MindmapNode) => {
     if (node.metadata?.featureId) {
@@ -227,9 +226,9 @@ const MindmapFeaturesPage = () => {
         <ViewToggle
           currentView={currentView}
           onViewChange={setCurrentView}
-          syncStatus={syncState.status}
-          lastSyncTime={syncState.lastSyncTime}
-          conflictCount={syncState.conflictCount}
+          syncStatus={syncStatus}
+          lastSyncTime={lastSyncTime}
+          conflictCount={conflictCount}
           onRetrySync={retrySync}
         />
 

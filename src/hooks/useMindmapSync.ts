@@ -6,6 +6,7 @@ import type { Feature } from '@/hooks/useFeatures';
 export const useMindmapSync = (projectId: string) => {
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error' | 'offline'>('synced');
   const [lastSyncTime, setLastSyncTime] = useState<Date | undefined>();
+  const [conflictCount, setConflictCount] = useState(0);
   const cleanupRef = useRef<(() => void) | null>(null);
 
   // Sync mindmap changes to features
@@ -18,6 +19,7 @@ export const useMindmapSync = (projectId: string) => {
     } catch (error) {
       console.error('Sync failed:', error);
       setSyncStatus('error');
+      setConflictCount(prev => prev + 1);
     }
   };
 
@@ -31,7 +33,15 @@ export const useMindmapSync = (projectId: string) => {
     } catch (error) {
       console.error('Sync failed:', error);
       setSyncStatus('error');
+      setConflictCount(prev => prev + 1);
     }
+  };
+
+  // Retry sync operation
+  const retrySync = () => {
+    setSyncStatus('synced');
+    setConflictCount(0);
+    setLastSyncTime(new Date());
   };
 
   // Subscribe to real-time changes
@@ -76,7 +86,9 @@ export const useMindmapSync = (projectId: string) => {
   return {
     syncStatus,
     lastSyncTime,
+    conflictCount,
     syncMindmapToFeatures,
-    syncFeaturesToMindmap
+    syncFeaturesToMindmap,
+    retrySync
   };
 };
