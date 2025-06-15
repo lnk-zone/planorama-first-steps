@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { TransformWrapper, TransformComponent, useControls } from 'react-zoom-pan-pinch';
+import { useMindmap } from '@/hooks/useMindmap';
 
 export interface MindmapNode {
   id: string;
@@ -30,6 +31,7 @@ export interface ViewportState {
 
 export interface MindmapVisualizationProps {
   mindmap: MindmapStructure;
+  mindmapId?: string;
   width?: number;
   height?: number;
   selectedNodeId?: string;
@@ -53,12 +55,15 @@ const ControlButtons = () => {
 
 const MindmapVisualization: React.FC<MindmapVisualizationProps> = ({
   mindmap,
+  mindmapId,
   width = 800,
   height = 600,
   selectedNodeId,
   onNodeClick,
   onViewportChange
 }) => {
+  const { mindmap: liveMindmap } = useMindmap(mindmapId, mindmap);
+  const currentMap = liveMindmap || mindmap;
   const [viewport, setViewport] = useState<ViewportState>(defaultViewport);
 
   useEffect(() => {
@@ -67,7 +72,7 @@ const MindmapVisualization: React.FC<MindmapVisualizationProps> = ({
     }
   }, [onViewportChange]);
 
-  const nodes = useMemo(() => [mindmap.rootNode, ...mindmap.nodes], [mindmap]);
+  const nodes = useMemo(() => [currentMap.rootNode, ...currentMap.nodes], [currentMap]);
   const nodeMap = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes]);
 
   const handleTransformed = useCallback((ref: any, state: any) => {
@@ -86,13 +91,13 @@ const MindmapVisualization: React.FC<MindmapVisualizationProps> = ({
   }, [nodes, viewport, width, height]);
 
   const visibleConnections = useMemo(() => {
-    return mindmap.connections.filter(c => {
+    return currentMap.connections.filter(c => {
       const a = nodeMap.get(c.from);
       const b = nodeMap.get(c.to);
       if (!a || !b) return false;
       return visibleNodes.includes(a) || visibleNodes.includes(b);
     });
-  }, [mindmap, nodeMap, visibleNodes]);
+  }, [currentMap, nodeMap, visibleNodes]);
 
   const handleNodeClick = useCallback((node: MindmapNode) => {
     if (onNodeClick) onNodeClick(node);
