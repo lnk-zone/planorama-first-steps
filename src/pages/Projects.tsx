@@ -108,7 +108,13 @@ const Projects = () => {
         .eq('project_id', project.id)
         .order('order_index');
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching project features:', error);
+        showError('Failed to load project features. Please try again.');
+        return;
+      }
+
+      console.log('Fetched features for template:', features);
 
       setTemplateProject({
         ...project,
@@ -116,8 +122,8 @@ const Projects = () => {
       } as any);
       setShowTemplateModal(true);
     } catch (error) {
-      console.error('Error fetching project features:', error);
-      showError('Failed to load project features. Please try again.');
+      console.error('Error preparing template data:', error);
+      showError('Failed to prepare template data. Please try again.');
     }
   };
 
