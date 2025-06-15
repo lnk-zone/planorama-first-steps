@@ -13,6 +13,10 @@ export interface ProjectTemplate {
   created_by: string | null;
   created_at: string | null;
   updated_at: string | null;
+  tags?: string[] | null;
+  difficulty_level?: string | null;
+  estimated_hours?: number | null;
+  is_featured?: boolean | null;
 }
 
 export interface TemplateFeature {
@@ -30,6 +34,7 @@ export const useTemplates = () => {
       .from('project_templates')
       .select('*')
       .eq('is_public', true)
+      .order('is_featured', { ascending: false })
       .order('name');
 
     if (error) throw error;
@@ -57,6 +62,18 @@ export const useTemplates = () => {
     );
 
     await Promise.all(featurePromises);
+
+    // Record template usage
+    const user = await supabase.auth.getUser();
+    if (user.data.user) {
+      await supabase
+        .from('template_usage')
+        .insert([{
+          template_id: templateId,
+          used_by: user.data.user.id,
+          project_id: projectId
+        }]);
+    }
   };
 
   useEffect(() => {

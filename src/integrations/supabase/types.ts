@@ -113,35 +113,61 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           description: string | null
+          difficulty_level: string | null
+          estimated_hours: number | null
           features: Json
           id: string
+          is_featured: boolean | null
           is_public: boolean | null
           name: string
+          parent_template_id: string | null
+          tags: string[] | null
           updated_at: string | null
+          version: number | null
         }
         Insert: {
           category: string
           created_at?: string | null
           created_by?: string | null
           description?: string | null
+          difficulty_level?: string | null
+          estimated_hours?: number | null
           features?: Json
           id?: string
+          is_featured?: boolean | null
           is_public?: boolean | null
           name: string
+          parent_template_id?: string | null
+          tags?: string[] | null
           updated_at?: string | null
+          version?: number | null
         }
         Update: {
           category?: string
           created_at?: string | null
           created_by?: string | null
           description?: string | null
+          difficulty_level?: string | null
+          estimated_hours?: number | null
           features?: Json
           id?: string
+          is_featured?: boolean | null
           is_public?: boolean | null
           name?: string
+          parent_template_id?: string | null
+          tags?: string[] | null
           updated_at?: string | null
+          version?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "project_templates_parent_template_id_fkey"
+            columns: ["parent_template_id"]
+            isOneToOne: false
+            referencedRelation: "project_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       projects: {
         Row: {
@@ -322,6 +348,81 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      template_categories: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+        }
+        Relationships: []
+      }
+      template_usage: {
+        Row: {
+          feedback_rating: number | null
+          feedback_text: string | null
+          id: string
+          project_id: string | null
+          template_id: string
+          used_at: string | null
+          used_by: string
+        }
+        Insert: {
+          feedback_rating?: number | null
+          feedback_text?: string | null
+          id?: string
+          project_id?: string | null
+          template_id: string
+          used_at?: string | null
+          used_by: string
+        }
+        Update: {
+          feedback_rating?: number | null
+          feedback_text?: string | null
+          id?: string
+          project_id?: string | null
+          template_id?: string
+          used_at?: string | null
+          used_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "template_usage_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "template_usage_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "project_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_profiles: {
         Row: {
