@@ -12,6 +12,7 @@ import { useFeatures } from '@/hooks/useFeatures';
 import { toast } from '@/hooks/use-toast';
 import FeatureCard from '@/components/FeatureCard';
 import AddEditFeatureModal from '@/components/AddEditFeatureModal';
+import AIMindmapGenerationModal from '@/components/AIMindmapGenerationModal';
 
 interface Project {
   id: string;
@@ -25,11 +26,12 @@ interface Project {
 const ProjectDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
-  const { features, loading: featuresLoading, addFeature, updateFeature, deleteFeature } = useFeatures(id || '');
+  const { features, loading: featuresLoading, addFeature, updateFeature, deleteFeature, refetch: refetchFeatures } = useFeatures(id || '');
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingFeature, setEditingFeature] = useState(null);
+  const [isAIGenerationModalOpen, setIsAIGenerationModalOpen] = useState(false);
 
   useEffect(() => {
     if (id && user) {
@@ -117,6 +119,16 @@ const ProjectDetail = () => {
     }
   };
 
+  const handleAIGenerationComplete = (result: any) => {
+    // Refresh features to show the newly generated ones
+    refetchFeatures();
+    
+    toast({
+      title: "Mindmap generated successfully!",
+      description: `Generated ${result.features.length} features and ${result.userStories.length} user stories.`,
+    });
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'planning':
@@ -189,6 +201,15 @@ const ProjectDetail = () => {
                 </span>
               </div>
             </div>
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => setIsAIGenerationModalOpen(true)}
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+              >
+                <Zap className="h-4 w-4 mr-2" />
+                Generate Mindmap with AI
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -260,6 +281,13 @@ const ProjectDetail = () => {
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold">Quick Actions</h3>
                     <div className="space-y-2">
+                      <Button 
+                        onClick={() => setIsAIGenerationModalOpen(true)} 
+                        className="w-full justify-start bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                      >
+                        <Zap className="h-4 w-4 mr-2" />
+                        Generate Mindmap with AI
+                      </Button>
                       <Button onClick={() => setIsAddModalOpen(true)} className="w-full justify-start">
                         <Plus className="h-4 w-4 mr-2" />
                         Add Feature
@@ -352,15 +380,24 @@ const ProjectDetail = () => {
                 <div className="border-2 border-dashed border-gray-200 rounded-lg p-12 text-center">
                   <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    Mindmap Integration Coming Soon
+                    AI-Powered Mindmap Generation
                   </h3>
                   <p className="text-gray-600 mb-6">
-                    This is where you'll create interactive mindmaps to visualize your app structure.
-                    The mindmap component will integrate with external tools for rich visualization.
+                    Generate a comprehensive mindmap structure using AI, or create one manually.
+                    The mindmap will integrate with your features and user stories.
                   </p>
-                  <Button disabled>
-                    Create Mindmap
-                  </Button>
+                  <div className="flex gap-2 justify-center">
+                    <Button 
+                      onClick={() => setIsAIGenerationModalOpen(true)}
+                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                    >
+                      <Zap className="h-4 w-4 mr-2" />
+                      Generate with AI
+                    </Button>
+                    <Button variant="outline" disabled>
+                      Create Manually
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -475,6 +512,15 @@ const ProjectDetail = () => {
           feature={editingFeature}
           onClose={() => setEditingFeature(null)}
           onSave={handleEditFeature}
+        />
+
+        <AIMindmapGenerationModal
+          isOpen={isAIGenerationModalOpen}
+          projectId={id!}
+          projectTitle={project?.title}
+          projectDescription={project?.description}
+          onClose={() => setIsAIGenerationModalOpen(false)}
+          onComplete={handleAIGenerationComplete}
         />
       </div>
     </div>
