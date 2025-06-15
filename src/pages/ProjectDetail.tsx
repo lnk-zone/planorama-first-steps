@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ArrowLeft, Settings, Share2, Download, Zap, FileText, Users, Activity, Layers, Plus } from 'lucide-react';
+import MindmapVisualization, { MindmapStructure, MindmapNode } from '@/components/mindmap/MindmapVisualization';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useFeatures } from '@/hooks/useFeatures';
@@ -32,12 +33,24 @@ const ProjectDetail = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingFeature, setEditingFeature] = useState(null);
   const [isAIGenerationModalOpen, setIsAIGenerationModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('planning');
+  const [mindmap, setMindmap] = useState<MindmapStructure | null>(null);
+  const [mindmapId, setMindmapId] = useState<string | null>(null);
+  const [mindmapLoading, setMindmapLoading] = useState(false);
+  const [selectedParentNodeId, setSelectedParentNodeId] = useState<string | null>(null);
+  const [selectedNode, setSelectedNode] = useState<MindmapNode | null>(null);
 
   useEffect(() => {
     if (id && user) {
       fetchProject();
     }
   }, [id, user]);
+
+  useEffect(() => {
+    if (activeTab === 'mindmap' && id) {
+      fetchMindmap();
+    }
+  }, [activeTab, id]);
 
   const fetchProject = async () => {
     if (!id || !user) return;
@@ -67,10 +80,51 @@ const ProjectDetail = () => {
     }
   };
 
+  const fetchMindmap = async () => {
+    if (!id) return;
+    setMindmapLoading(true);
+    const { data, error } = await supabase
+      .from('mindmaps')
+      .select('id, data')
+      .eq('project_id', id)
+      .single();
+    if (!error && data) {
+      setMindmapId(data.id);
+      setMindmap(data.data as MindmapStructure);
+    }
+    setMindmapLoading(false);
+  };
+
   const handleAddFeature = async (featureData: any) => {
     try {
-      await addFeature(featureData);
+      const newFeature = await addFeature({
+        ...featureData,
+        parent_id: selectedParentNodeId || featureData.parent_id
+      });
+
+      if (mindmap && mindmapId) {
+        const nodeId = crypto.randomUUID();
+        const newNode: MindmapNode = {
+          id: nodeId,
+          title: newFeature.title,
+          description: newFeature.description || undefined,
+          parentId: selectedParentNodeId || mindmap.rootNode.id,
+          position: { x: Math.random() * 400 - 200, y: Math.random() * 400 - 200 },
+          style: { color: '#3b82f6', size: 'medium' },
+          metadata: { priority: newFeature.priority, complexity: newFeature.complexity }
+        };
+        const conn = { from: selectedParentNodeId || mindmap.rootNode.id, to: nodeId };
+        const updated: MindmapStructure & { featureMapping?: Record<string, string> } = {
+          ...mindmap,
+          nodes: [...mindmap.nodes, newNode],
+          connections: [...mindmap.connections, conn],
+          featureMapping: { ...(mindmap as any).featureMapping, [nodeId]: newFeature.id }
+        };
+        await syncMindmap(updated);
+      }
+
       setIsAddModalOpen(false);
+      setSelectedParentNodeId(null);
       toast({
         title: "Feature added",
         description: "New feature has been added successfully.",
@@ -86,9 +140,10 @@ const ProjectDetail = () => {
 
   const handleEditFeature = async (featureData: any) => {
     if (!editingFeature) return;
-    
+
     try {
       await updateFeature(editingFeature.id, featureData);
+      await updateMindmapNodeFromFeature(editingFeature.id, featureData);
       setEditingFeature(null);
       toast({
         title: "Feature updated",
@@ -119,10 +174,55 @@ const ProjectDetail = () => {
     }
   };
 
+  const syncMindmap = async (updated: MindmapStructure) => {
+    if (!mindmapId) return;
+    setMindmap(updated);
+    await supabase
+      .from('mindmaps')
+      .update({ data: updated, updated_at: new Date().toISOString() })
+      .eq('id', mindmapId);
+  };
+
+  const updateMindmapNodeFromFeature = async (featureId: string, updates: any) => {
+    if (!mindmap) return;
+    const mapping: Record<string, string> = (mindmap as any).featureMapping || {};
+    const nodeId = Object.entries(mapping).find(([_, fId]) => fId === featureId)?.[0];
+    if (!nodeId) return;
+    const apply = (node: MindmapNode) => ({
+      ...node,
+      title: updates.title || node.title,
+      description: updates.description || node.description,
+      metadata: { ...(node.metadata || {}), priority: updates.priority, complexity: updates.complexity }
+    });
+    let updated = { ...mindmap } as MindmapStructure;
+    if (nodeId === mindmap.rootNode.id) {
+      updated.rootNode = apply(mindmap.rootNode);
+    } else {
+      updated.nodes = mindmap.nodes.map(n => n.id === nodeId ? apply(n) : n);
+    }
+    await syncMindmap(updated);
+  };
+
+  const handleNodeClick = (node: MindmapNode) => {
+    const mapping: Record<string, string> = (mindmap as any)?.featureMapping || {};
+    const featureId = mapping[node.id];
+    if (featureId) {
+      const feature = features.find(f => f.id === featureId);
+      if (feature) setEditingFeature(feature);
+    } else {
+      setSelectedParentNodeId(node.id);
+      setIsAddModalOpen(true);
+    }
+    setSelectedNode(node);
+  };
+
   const handleAIGenerationComplete = (result: any) => {
     // Refresh features to show the newly generated ones
     refetchFeatures();
-    
+
+    setMindmapId(result.mindmapData.id);
+    setMindmap(result.mindmapData.data as MindmapStructure);
+
     toast({
       title: "Mindmap generated successfully!",
       description: `Generated ${result.features.length} features and ${result.userStories.length} user stories.`,
@@ -216,7 +316,7 @@ const ProjectDetail = () => {
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">
-        <Tabs defaultValue="planning" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="planning" className="flex items-center">
               <Activity className="h-4 w-4 mr-2" />
@@ -377,28 +477,36 @@ const ProjectDetail = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="border-2 border-dashed border-gray-200 rounded-lg p-12 text-center">
-                  <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    AI-Powered Mindmap Generation
-                  </h3>
-                  <p className="text-gray-600 mb-6">
-                    Generate a comprehensive mindmap structure using AI, or create one manually.
-                    The mindmap will integrate with your features and user stories.
-                  </p>
-                  <div className="flex gap-2 justify-center">
-                    <Button 
-                      onClick={() => setIsAIGenerationModalOpen(true)}
-                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                    >
-                      <Zap className="h-4 w-4 mr-2" />
-                      Generate with AI
-                    </Button>
-                    <Button variant="outline" disabled>
-                      Create Manually
-                    </Button>
+                {mindmapLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
                   </div>
-                </div>
+                ) : mindmap ? (
+                  <MindmapVisualization mindmap={mindmap} onNodeClick={handleNodeClick} width={800} height={600} />
+                ) : (
+                  <div className="border-2 border-dashed border-gray-200 rounded-lg p-12 text-center">
+                    <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      AI-Powered Mindmap Generation
+                    </h3>
+                    <p className="text-gray-600 mb-6">
+                      Generate a comprehensive mindmap structure using AI, or create one manually.
+                      The mindmap will integrate with your features and user stories.
+                    </p>
+                    <div className="flex gap-2 justify-center">
+                      <Button
+                        onClick={() => setIsAIGenerationModalOpen(true)}
+                        className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                      >
+                        <Zap className="h-4 w-4 mr-2" />
+                        Generate with AI
+                      </Button>
+                      <Button variant="outline" disabled>
+                        Create Manually
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -503,7 +611,11 @@ const ProjectDetail = () => {
         {/* Modals */}
         <AddEditFeatureModal
           isOpen={isAddModalOpen}
-          onClose={() => setIsAddModalOpen(false)}
+          parentId={selectedParentNodeId || undefined}
+          onClose={() => {
+            setIsAddModalOpen(false);
+            setSelectedParentNodeId(null);
+          }}
           onSave={handleAddFeature}
         />
 
