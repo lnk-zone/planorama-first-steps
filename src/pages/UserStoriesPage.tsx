@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
@@ -10,7 +9,7 @@ import {
   Plus, 
   FileText, 
   Users, 
-  Template, 
+  FileTemplate, 
   GitBranch,
   MoreHorizontal
 } from 'lucide-react';
@@ -168,7 +167,7 @@ const UserStoriesPage = () => {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setIsTemplateModalOpen(true)}>
-                <Template className="h-4 w-4 mr-2" />
+                <FileTemplate className="h-4 w-4 mr-2" />
                 Use Template
               </Button>
               <Button onClick={() => setIsAddModalOpen(true)}>
@@ -217,7 +216,7 @@ const UserStoriesPage = () => {
                 </p>
                 <div className="flex gap-2 justify-center">
                   <Button variant="outline" onClick={() => setIsTemplateModalOpen(true)}>
-                    <Template className="h-4 w-4 mr-2" />
+                    <FileTemplate className="h-4 w-4 mr-2" />
                     Use Template
                   </Button>
                   <Button onClick={() => setIsAddModalOpen(true)}>
