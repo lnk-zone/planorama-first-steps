@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { TransformWrapper, TransformComponent, useControls } from 'react-zoom-pan-pinch';
 
 export interface MindmapNode {
@@ -60,6 +60,12 @@ const MindmapVisualization: React.FC<MindmapVisualizationProps> = ({
   onViewportChange
 }) => {
   const [viewport, setViewport] = useState<ViewportState>(defaultViewport);
+
+  useEffect(() => {
+    if (onViewportChange) {
+      onViewportChange(defaultViewport);
+    }
+  }, [onViewportChange]);
 
   const nodes = useMemo(() => [mindmap.rootNode, ...mindmap.nodes], [mindmap]);
   const nodeMap = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes]);
