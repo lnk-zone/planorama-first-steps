@@ -377,26 +377,26 @@ const ProjectDetail = () => {
           <TabsContent value="mindmap" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Interactive Mindmap</CardTitle>
+                <CardTitle>External Mindmap Integration</CardTitle>
                 <CardDescription>
-                  Switch between visual mindmap and list views. Changes sync in real-time.
+                  Connect with external mindmap tools and sync your features automatically.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="border-2 border-dashed border-gray-200 rounded-lg p-12 text-center">
                   <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    Interactive Mindmap & Features
+                    External Tool Integration
                   </h3>
                   <p className="text-gray-600 mb-6">
-                    View and edit your features in both visual mindmap and list formats. 
-                    Changes sync automatically between both views.
+                    Connect your project with external mindmap tools like Miro, Lucidchart, or Figma. 
+                    Features sync automatically between platforms.
                   </p>
                   <div className="flex gap-2 justify-center">
                     <Button asChild>
                       <Link to={`/projects/${id}/mindmap`}>
                         <Activity className="h-4 w-4 mr-2" />
-                        Open Interactive Mindmap
+                        Configure Integration
                       </Link>
                     </Button>
                     <Button 

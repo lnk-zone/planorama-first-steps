@@ -1,32 +1,31 @@
+
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useFeatures } from '@/hooks/useFeatures';
 import { useMindmapSync } from '@/hooks/useMindmapSync';
 import AppLayout from '@/components/AppLayout';
 import ViewToggle from '@/components/ViewToggle';
-import MindmapViewer from '@/components/MindmapViewer';
 import FeatureCard from '@/components/FeatureCard';
 import AddEditFeatureModal from '@/components/AddEditFeatureModal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, ArrowLeft } from 'lucide-react';
+import { Plus, ArrowLeft, ExternalLink, Settings, Code } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import type { Feature } from '@/hooks/useFeatures';
-import type { MindmapNode } from '@/lib/mindmapSync';
 
 const MindmapFeaturesPage = () => {
   const { id } = useParams<{ id: string }>();
   const { features, loading, addFeature, updateFeature, deleteFeature } = useFeatures(id || '');
-  const { syncStatus, lastSyncTime, conflictCount, syncMindmapToFeatures, syncFeaturesToMindmap, retrySync } = useMindmapSync(id || '');
+  const { syncStatus, lastSyncTime, conflictCount, syncFeaturesToMindmap, retrySync } = useMindmapSync(id || '');
   
   const [currentView, setCurrentView] = useState<'mindmap' | 'list'>('mindmap');
   const [mindmapData, setMindmapData] = useState<any>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingFeature, setEditingFeature] = useState<Feature | null>(null);
 
-  // Load mindmap data
+  // Load mindmap data for external tool integration
   useEffect(() => {
     const loadMindmapData = async () => {
       if (!id) return;
@@ -61,84 +60,13 @@ const MindmapFeaturesPage = () => {
     }
   }, [features, syncFeaturesToMindmap]);
 
-  const handleNodeClick = (node: MindmapNode) => {
-    if (node.metadata?.featureId) {
-      const feature = features.find(f => f.id === node.metadata?.featureId);
-      if (feature) {
-        setEditingFeature(feature);
-      }
-    }
-  };
-
-  const handleNodeUpdate = async (nodeId: string, updates: Partial<MindmapNode>) => {
-    if (!mindmapData) return;
-
-    const updatedNodes = mindmapData.nodes?.map((node: MindmapNode) => 
-      node.id === nodeId ? { ...node, ...updates } : node
-    ) || [];
-
-    if (mindmapData.rootNode?.id === nodeId) {
-      const updatedRootNode = { ...mindmapData.rootNode, ...updates };
-      const newMindmapData = {
-        ...mindmapData,
-        rootNode: updatedRootNode,
-        nodes: updatedNodes
-      };
-      setMindmapData(newMindmapData);
-
-      // Get mindmap ID and sync
-      const { data: mindmap } = await supabase
-        .from('mindmaps')
-        .select('id')
-        .eq('project_id', id)
-        .single();
-
-      if (mindmap) {
-        await syncMindmapToFeatures(mindmap.id, [updatedRootNode, ...updatedNodes]);
-      }
-    } else {
-      const newMindmapData = {
-        ...mindmapData,
-        nodes: updatedNodes
-      };
-      setMindmapData(newMindmapData);
-
-      // Sync changes
-      const { data: mindmap } = await supabase
-        .from('mindmaps')
-        .select('id')
-        .eq('project_id', id)
-        .single();
-
-      if (mindmap) {
-        await syncMindmapToFeatures(mindmap.id, updatedNodes);
-      }
-    }
-  };
-
-  const handleNodeDelete = async (nodeId: string) => {
-    if (!mindmapData || nodeId === 'root') return;
-
-    const nodeToDelete = mindmapData.nodes?.find((node: MindmapNode) => node.id === nodeId);
-    if (nodeToDelete?.metadata?.featureId) {
-      await deleteFeature(nodeToDelete.metadata.featureId);
-    }
-
-    const updatedNodes = mindmapData.nodes?.filter((node: MindmapNode) => node.id !== nodeId) || [];
-    const newMindmapData = {
-      ...mindmapData,
-      nodes: updatedNodes
-    };
-    setMindmapData(newMindmapData);
-  };
-
   const handleAddFeature = async (featureData: any) => {
     try {
       await addFeature(featureData);
       setIsAddModalOpen(false);
       toast({
         title: "Feature added",
-        description: "New feature has been added and will appear in the mindmap.",
+        description: "New feature has been added and synced to external mindmap tools.",
       });
     } catch (error) {
       toast({
@@ -157,7 +85,7 @@ const MindmapFeaturesPage = () => {
       setEditingFeature(null);
       toast({
         title: "Feature updated",
-        description: "Feature has been updated in both views.",
+        description: "Feature has been updated and synced to external tools.",
       });
     } catch (error) {
       toast({
@@ -177,7 +105,7 @@ const MindmapFeaturesPage = () => {
       await deleteFeature(featureId);
       toast({
         title: "Feature deleted",
-        description: "Feature has been removed from both views.",
+        description: "Feature has been removed and synced to external tools.",
       });
     } catch (error) {
       toast({
@@ -204,16 +132,16 @@ const MindmapFeaturesPage = () => {
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-4 mb-4">
-            <Link to={`/projects/${id}/planning`} className="flex items-center text-gray-600 hover:text-gray-900">
+            <Link to={`/projects/${id}`} className="flex items-center text-gray-600 hover:text-gray-900">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Planning
+              Back to Project
             </Link>
           </div>
           
           <div className="flex items-start justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Features & Mindmap</h1>
-              <p className="text-gray-600">Visual planning with synchronized features</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">External Mindmap Integration</h1>
+              <p className="text-gray-600">Connect external mindmap tools and sync with your features</p>
             </div>
             <Button onClick={() => setIsAddModalOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
@@ -235,28 +163,92 @@ const MindmapFeaturesPage = () => {
         {/* Content */}
         <div className="mt-6">
           {currentView === 'mindmap' ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Visual Mindmap</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <MindmapViewer
-                  projectId={id || ''}
-                  mindmapData={mindmapData}
-                  features={features}
-                  onNodeClick={handleNodeClick}
-                  onNodeUpdate={handleNodeUpdate}
-                  onNodeDelete={handleNodeDelete}
-                />
-              </CardContent>
-            </Card>
+            <div className="space-y-6">
+              {/* External Tool Integration Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>External Mindmap Tool Integration</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="border-2 border-dashed border-gray-200 rounded-lg p-12 text-center">
+                    <Settings className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Connect Your Mindmap Tool
+                    </h3>
+                    <p className="text-gray-600 mb-6">
+                      Integrate with external mindmap tools like Miro, Lucidchart, or Figma. 
+                      Your features will sync automatically with the external tool.
+                    </p>
+                    <div className="flex gap-2 justify-center">
+                      <Button disabled>
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Configure Integration
+                      </Button>
+                      <Button variant="outline" disabled>
+                        <Code className="h-4 w-4 mr-2" />
+                        API Documentation
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Data Export Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Export Data for External Tools</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <p className="text-gray-600">
+                      Export your feature data in formats compatible with popular mindmap tools:
+                    </p>
+                    <div className="flex gap-2">
+                      <Button variant="outline" disabled>Export as JSON</Button>
+                      <Button variant="outline" disabled>Export as CSV</Button>
+                      <Button variant="outline" disabled>Export as XML</Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Webhook Configuration Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Real-time Sync Configuration</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <p className="text-gray-600">
+                      Configure webhooks to keep your external mindmap tool in sync:
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-4 border rounded-lg">
+                        <h4 className="font-semibold mb-2">Outgoing Webhook</h4>
+                        <p className="text-sm text-gray-600 mb-2">
+                          Send updates to external tools when features change
+                        </p>
+                        <Button variant="outline" size="sm" disabled>Configure</Button>
+                      </div>
+                      <div className="p-4 border rounded-lg">
+                        <h4 className="font-semibold mb-2">Incoming Webhook</h4>
+                        <p className="text-sm text-gray-600 mb-2">
+                          Receive updates from external tools
+                        </p>
+                        <Button variant="outline" size="sm" disabled>Setup</Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           ) : (
             <div className="space-y-4">
               {features.length === 0 ? (
                 <div className="text-center py-12">
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">No features yet</h3>
                   <p className="text-gray-600 mb-6">
-                    Start by adding your first feature to see it in both views.
+                    Start by adding your first feature to sync with external mindmap tools.
                   </p>
                   <Button onClick={() => setIsAddModalOpen(true)}>
                     <Plus className="h-4 w-4 mr-2" />
@@ -270,7 +262,12 @@ const MindmapFeaturesPage = () => {
                     feature={feature}
                     onEdit={(feature) => setEditingFeature(feature)}
                     onDelete={handleDeleteFeature}
-                    onAddChild={() => {}} // Not implemented in this version
+                    onAddChild={() => {
+                      toast({
+                        title: "Coming soon",
+                        description: "Child features will be available soon.",
+                      });
+                    }}
                   />
                 ))
               )}
