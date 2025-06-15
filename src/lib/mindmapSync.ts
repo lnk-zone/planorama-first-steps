@@ -1,6 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import type { Feature } from '@/hooks/useFeatures';
+import type { Json } from '@/integrations/supabase/types';
 
 export interface MindmapNode {
   id: string;
@@ -30,6 +31,59 @@ export interface MindmapData {
   nodes: MindmapNode[];
   connections: Array<{ from: string; to: string }>;
 }
+
+// Helper function to convert MindmapNode to Json-compatible format
+const nodeToJson = (node: MindmapNode): Json => ({
+  id: node.id,
+  title: node.title,
+  description: node.description || null,
+  parentId: node.parentId || null,
+  position: {
+    x: node.position.x,
+    y: node.position.y
+  },
+  style: {
+    color: node.style.color,
+    size: node.style.size
+  },
+  metadata: node.metadata ? {
+    priority: node.metadata.priority || null,
+    complexity: node.metadata.complexity || null,
+    category: node.metadata.category || null,
+    featureId: node.metadata.featureId || null,
+    generated_by_ai: node.metadata.generated_by_ai || null,
+    node_id: node.metadata.node_id || null,
+    generation_timestamp: node.metadata.generation_timestamp || null
+  } : null
+});
+
+// Helper function to convert Json to MindmapNode
+const jsonToNode = (json: Json): MindmapNode => {
+  const data = json as Record<string, any>;
+  return {
+    id: data.id as string,
+    title: data.title as string,
+    description: data.description as string | undefined,
+    parentId: data.parentId as string | undefined,
+    position: {
+      x: (data.position as any)?.x || 0,
+      y: (data.position as any)?.y || 0
+    },
+    style: {
+      color: (data.style as any)?.color || '#3b82f6',
+      size: (data.style as any)?.size || 'medium'
+    },
+    metadata: data.metadata ? {
+      priority: (data.metadata as any)?.priority,
+      complexity: (data.metadata as any)?.complexity,
+      category: (data.metadata as any)?.category,
+      featureId: (data.metadata as any)?.featureId,
+      generated_by_ai: (data.metadata as any)?.generated_by_ai,
+      node_id: (data.metadata as any)?.node_id,
+      generation_timestamp: (data.metadata as any)?.generation_timestamp
+    } : undefined
+  };
+};
 
 export class MindmapSyncService {
   private eventEmitter = new EventTarget();
@@ -68,8 +122,9 @@ export class MindmapSyncService {
       const mindmap = await this.getMindmapByProject(projectId);
       if (!mindmap) return;
 
+      const existingNodes = this.extractNodesFromMindmapData(mindmap.data);
       const updatedNodes = await this.updateNodesFromFeatures(
-        mindmap.data.nodes || [],
+        existingNodes,
         updatedFeatures
       );
       
@@ -109,10 +164,15 @@ export class MindmapSyncService {
 
   // Private helper methods
   private async updateMindmapData(mindmapId: string, nodes: MindmapNode[]): Promise<void> {
+    const jsonData: Json = {
+      nodes: nodes.map(nodeToJson),
+      connections: []
+    };
+
     const { error } = await supabase
       .from('mindmaps')
       .update({
-        data: { nodes, connections: [] },
+        data: jsonData,
         updated_at: new Date().toISOString()
       })
       .eq('id', mindmapId);
@@ -129,6 +189,17 @@ export class MindmapSyncService {
 
     if (error && error.code !== 'PGRST116') throw error;
     return data;
+  }
+
+  private extractNodesFromMindmapData(mindmapData: Json): MindmapNode[] {
+    if (!mindmapData || typeof mindmapData !== 'object') return [];
+    
+    const data = mindmapData as Record<string, any>;
+    const nodesJson = data.nodes as Json[];
+    
+    if (!Array.isArray(nodesJson)) return [];
+    
+    return nodesJson.map(jsonToNode);
   }
 
   private async updateFeatureFromNode(node: MindmapNode): Promise<void> {

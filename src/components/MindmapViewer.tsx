@@ -10,7 +10,8 @@ import {
   Connection,
   Edge,
   Node,
-  MarkerType
+  MarkerType,
+  BackgroundVariant
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -272,7 +273,7 @@ const MindmapViewer = ({
         maxZoom={2}
       >
         <Controls />
-        <Background variant="dots" gap={12} size={1} />
+        <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
       </ReactFlow>
     </div>
   );
