@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { Feature } from '@/hooks/useFeatures';
 import type { UserStory } from '@/hooks/useUserStories';
@@ -43,12 +42,28 @@ export class AIMindmapGenerator {
       
       this.updateProgress('generating_structure', 30, 'Generating mindmap structure with AI...');
 
+      console.log('Calling Supabase function with prompt:', prompt.substring(0, 200) + '...');
+      
       const { data: aiResponse, error } = await supabase.functions.invoke('generate-mindmap', {
         body: { prompt }
       });
 
       if (error) {
-        throw new Error(`AI generation failed: ${error.message}`);
+        console.error('Supabase function error:', error);
+        throw new Error(`AI generation failed: ${error.message || 'Unknown error from AI service'}`);
+      }
+
+      if (!aiResponse) {
+        console.error('No response data from AI service');
+        throw new Error('No response received from AI service');
+      }
+
+      console.log('AI Response received:', aiResponse);
+      
+      // Validate the response structure
+      if (!aiResponse.mindmap || !aiResponse.features || !aiResponse.userStories) {
+        console.error('Invalid AI response structure:', aiResponse);
+        throw new Error('Invalid response structure from AI service');
       }
       
       this.updateProgress('creating_features', 60, 'Creating features from mindmap...');
@@ -72,7 +87,21 @@ export class AIMindmapGenerator {
       return { mindmapData, features, userStories };
     } catch (error) {
       console.error('AI mindmap generation failed:', error);
-      throw new Error('Failed to generate mindmap. Please try again.');
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to generate mindmap. Please try again.';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('AI generation failed')) {
+          errorMessage = 'AI service encountered an error. Please check your description and try again.';
+        } else if (error.message.includes('No response')) {
+          errorMessage = 'AI service is not responding. Please try again in a moment.';
+        } else if (error.message.includes('Invalid response')) {
+          errorMessage = 'AI service returned invalid data. Please try simplifying your description.';
+        }
+      }
+      
+      throw new Error(errorMessage);
     }
   }
 
@@ -140,12 +169,12 @@ Return JSON with this EXACT structure:
 }
 
 REQUIREMENTS:
-- Generate 8-15 main feature nodes with 2-4 sub-features each
+- Generate 6-12 main feature nodes
 - Position nodes in a logical visual hierarchy
 - Include rich descriptions and metadata
 - Generate 2-3 user stories per feature
 - Focus on core functionality first, then supporting features
-- Use consistent color coding by category
+- Use consistent color coding by category: #3b82f6 (core), #10b981 (ui), #f59e0b (integration), #ef4444 (admin)
     `.trim();
   }
 
