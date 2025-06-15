@@ -1,26 +1,24 @@
-
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useFeatures } from '@/hooks/useFeatures';
 import AppLayout from '@/components/AppLayout';
 import FeatureCard from '@/components/FeatureCard';
+import FeatureHierarchy from '@/components/FeatureHierarchy';
+import DraggableFeatureList from '@/components/DraggableFeatureList';
+import BulkFeatureOperations from '@/components/BulkFeatureOperations';
+import AdvancedFeatureFilters, { type FeatureFilters } from '@/components/AdvancedFeatureFilters';
 import AddEditFeatureModal from '@/components/AddEditFeatureModal';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
 import { 
   ArrowLeft, 
   Plus, 
-  Search, 
-  Filter,
-  Layers
+  Layers,
+  List,
+  Shuffle,
+  Settings2
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
@@ -29,17 +27,136 @@ const FeaturesPage = () => {
   const { features, loading, addFeature, updateFeature, deleteFeature } = useFeatures(id || '');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingFeature, setEditingFeature] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [priorityFilter, setPriorityFilter] = useState<string>('all');
-
-  const filteredFeatures = features.filter(feature => {
-    const matchesSearch = feature.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         feature.description?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || feature.status === statusFilter;
-    const matchesPriority = priorityFilter === 'all' || feature.priority === priorityFilter;
-    return matchesSearch && matchesStatus && matchesPriority;
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'hierarchy' | 'draggable'>('list');
+  
+  const [filters, setFilters] = useState<FeatureFilters>({
+    search: '',
+    status: [],
+    priority: [],
+    complexity: [],
+    category: [],
+    dateRange: {}
   });
+
+  // Get unique categories from features
+  const categories = Array.from(new Set(features.filter(f => f.category).map(f => f.category!)));
+
+  // Apply filters to features
+  const filteredFeatures = features.filter(feature => {
+    // Search filter
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      const matchesSearch = 
+        feature.title.toLowerCase().includes(searchLower) ||
+        feature.description?.toLowerCase().includes(searchLower) ||
+        false;
+      if (!matchesSearch) return false;
+    }
+
+    // Status filter
+    if (filters.status.length > 0 && !filters.status.includes(feature.status || 'planned')) {
+      return false;
+    }
+
+    // Priority filter
+    if (filters.priority.length > 0 && !filters.priority.includes(feature.priority || 'medium')) {
+      return false;
+    }
+
+    // Complexity filter
+    if (filters.complexity.length > 0 && !filters.complexity.includes(feature.complexity || 'medium')) {
+      return false;
+    }
+
+    // Category filter
+    if (filters.category.length > 0 && (!feature.category || !filters.category.includes(feature.category))) {
+      return false;
+    }
+
+    // Date range filter
+    if (filters.dateRange.from || filters.dateRange.to) {
+      const featureDate = new Date(feature.created_at || '');
+      if (filters.dateRange.from && featureDate < filters.dateRange.from) return false;
+      if (filters.dateRange.to && featureDate > filters.dateRange.to) return false;
+    }
+
+    return true;
+  });
+
+  const handleSelectFeature = (featureId: string, selected: boolean) => {
+    setSelectedFeatures(prev => 
+      selected 
+        ? [...prev, featureId]
+        : prev.filter(id => id !== featureId)
+    );
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    setSelectedFeatures(checked ? filteredFeatures.map(f => f.id) : []);
+  };
+
+  const getSelectedFeatureObjects = () => {
+    return features.filter(feature => selectedFeatures.includes(feature.id));
+  };
+
+  const handleReorderFeatures = async (reorderedFeatures: any[]) => {
+    try {
+      // Update each feature's order_index
+      for (const feature of reorderedFeatures) {
+        await updateFeature(feature.id, { order_index: feature.order_index });
+      }
+      toast({
+        title: "Features reordered",
+        description: "Feature order has been updated successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to reorder features. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBulkUpdate = async (updates: any) => {
+    try {
+      for (const featureId of selectedFeatures) {
+        await updateFeature(featureId, updates);
+      }
+      setSelectedFeatures([]);
+      toast({
+        title: "Features updated",
+        description: `${selectedFeatures.length} features have been updated successfully.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update features. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      for (const featureId of selectedFeatures) {
+        await deleteFeature(featureId);
+      }
+      setSelectedFeatures([]);
+      toast({
+        title: "Features deleted",
+        description: `${selectedFeatures.length} features have been deleted successfully.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete features. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleAddFeature = async (featureData: any) => {
     try {
@@ -126,103 +243,177 @@ const FeaturesPage = () => {
             </Button>
           </div>
 
-          {/* Search and Filters */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input
-                placeholder="Search features..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            
-            <div className="flex gap-2">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-32">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="planned">Planned</SelectItem>
-                  <SelectItem value="in-progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="on-hold">On Hold</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                <SelectTrigger className="w-32">
-                  <SelectValue placeholder="Priority" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Priority</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          {/* Advanced Filters */}
+          <AdvancedFeatureFilters
+            filters={filters}
+            onFiltersChange={setFilters}
+            categories={categories}
+          />
 
           {/* Stats */}
-          <div className="flex gap-4 mb-6">
+          <div className="flex gap-4 mt-4">
             <Badge variant="outline" className="flex items-center gap-1">
               <Layers className="h-3 w-3" />
-              Total: {features.length}
+              Total: {filteredFeatures.length}
             </Badge>
             <Badge variant="outline">
-              Planned: {features.filter(f => f.status === 'planned').length}
+              Planned: {filteredFeatures.filter(f => f.status === 'planned').length}
             </Badge>
             <Badge variant="outline">
-              In Progress: {features.filter(f => f.status === 'in-progress').length}
+              In Progress: {filteredFeatures.filter(f => f.status === 'in-progress').length}
             </Badge>
             <Badge variant="outline">
-              Completed: {features.filter(f => f.status === 'completed').length}
+              Completed: {filteredFeatures.filter(f => f.status === 'completed').length}
             </Badge>
           </div>
+
+          {/* Bulk Operations Bar */}
+          {selectedFeatures.length > 0 && (
+            <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg mt-4">
+              <span className="text-sm text-blue-800">
+                {selectedFeatures.length} feature{selectedFeatures.length !== 1 ? 's' : ''} selected
+              </span>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setSelectedFeatures([])}
+                >
+                  Clear Selection
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setIsBulkModalOpen(true)}
+                >
+                  <Settings2 className="h-4 w-4 mr-2" />
+                  Bulk Actions
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Features List */}
-        {filteredFeatures.length === 0 ? (
-          <div className="text-center py-12">
-            <Layers className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {features.length === 0 ? "No features yet" : "No features match your filters"}
-            </h3>
-            <p className="text-gray-600 mb-6">
-              {features.length === 0 
-                ? "Start by adding your first feature to define what you want to build."
-                : "Try adjusting your search or filter criteria."
-              }
-            </p>
-            {features.length === 0 && (
-              <Button onClick={() => setIsAddModalOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Your First Feature
-              </Button>
+        {/* View Mode Tabs */}
+        <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as any)} className="mb-6">
+          <TabsList>
+            <TabsTrigger value="list" className="flex items-center gap-2">
+              <List className="h-4 w-4" />
+              List View
+            </TabsTrigger>
+            <TabsTrigger value="hierarchy" className="flex items-center gap-2">
+              <Layers className="h-4 w-4" />
+              Hierarchy
+            </TabsTrigger>
+            <TabsTrigger value="draggable" className="flex items-center gap-2">
+              <Shuffle className="h-4 w-4" />
+              Reorder
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="list" className="space-y-4 mt-6">
+            {filteredFeatures.length === 0 ? (
+              <div className="text-center py-12">
+                <Layers className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {features.length === 0 ? "No features yet" : "No features match your filters"}
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  {features.length === 0 
+                    ? "Start by adding your first feature to define what you want to build."
+                    : "Try adjusting your search or filter criteria."
+                  }
+                </p>
+                {features.length === 0 && (
+                  <Button onClick={() => setIsAddModalOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Your First Feature
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Select All */}
+                <div className="flex items-center gap-2 p-2">
+                  <Checkbox
+                    checked={selectedFeatures.length === filteredFeatures.length}
+                    onCheckedChange={handleSelectAll}
+                  />
+                  <span className="text-sm text-gray-600">Select all features</span>
+                </div>
+
+                {filteredFeatures.map(feature => (
+                  <div key={feature.id} className="flex items-start gap-3">
+                    <Checkbox
+                      checked={selectedFeatures.includes(feature.id)}
+                      onCheckedChange={(checked) => handleSelectFeature(feature.id, checked as boolean)}
+                      className="mt-6"
+                    />
+                    <div className="flex-1">
+                      <FeatureCard
+                        feature={feature}
+                        onEdit={(feature) => setEditingFeature(feature)}
+                        onDelete={handleDeleteFeature}
+                        onAddChild={() => {
+                          toast({
+                            title: "Coming soon",
+                            description: "Child features will be available soon.",
+                          });
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {filteredFeatures.map(feature => (
-              <FeatureCard
-                key={feature.id}
-                feature={feature}
+          </TabsContent>
+
+          <TabsContent value="hierarchy" className="mt-6">
+            {filteredFeatures.length === 0 ? (
+              <div className="text-center py-12">
+                <Layers className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No features to display</h3>
+                <p className="text-gray-600 mb-6">Add features to see them in hierarchy view.</p>
+              </div>
+            ) : (
+              <FeatureHierarchy
+                features={filteredFeatures}
+                onFeatureSelect={(feature) => console.log('Selected:', feature)}
+                onAddChild={() => {
+                  toast({
+                    title: "Coming soon",
+                    description: "Child features will be available soon.",
+                  });
+                }}
+                onEdit={(feature) => setEditingFeature(feature)}
+                onDelete={handleDeleteFeature}
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent value="draggable" className="mt-6">
+            {filteredFeatures.length === 0 ? (
+              <div className="text-center py-12">
+                <Shuffle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No features to reorder</h3>
+                <p className="text-gray-600 mb-6">Add features to reorder them by dragging and dropping.</p>
+              </div>
+            ) : (
+              <DraggableFeatureList
+                features={filteredFeatures}
+                onReorder={handleReorderFeatures}
                 onEdit={(feature) => setEditingFeature(feature)}
                 onDelete={handleDeleteFeature}
                 onAddChild={() => {
-                  // TODO: Implement child feature creation
                   toast({
                     title: "Coming soon",
                     description: "Child features will be available soon.",
                   });
                 }}
               />
-            ))}
-          </div>
-        )}
+            )}
+          </TabsContent>
+        </Tabs>
 
         {/* Modals */}
         <AddEditFeatureModal
@@ -236,6 +427,14 @@ const FeaturesPage = () => {
           feature={editingFeature}
           onClose={() => setEditingFeature(null)}
           onSave={handleEditFeature}
+        />
+
+        <BulkFeatureOperations
+          isOpen={isBulkModalOpen}
+          selectedFeatures={getSelectedFeatureObjects()}
+          onClose={() => setIsBulkModalOpen(false)}
+          onBulkUpdate={handleBulkUpdate}
+          onBulkDelete={handleBulkDelete}
         />
       </div>
     </AppLayout>
