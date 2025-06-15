@@ -16,6 +16,11 @@ interface ProductivityInsightsProps {
   projects: any[];
 }
 
+interface TypeStats {
+  total: number;
+  completed: number;
+}
+
 const ProductivityInsights = ({ projects }: ProductivityInsightsProps) => {
   const currentWeek = {
     start: startOfWeek(new Date()),
@@ -57,10 +62,10 @@ const ProductivityInsights = ({ projects }: ProductivityInsightsProps) => {
     acc[type].total++;
     if (p.status === 'completed') acc[type].completed++;
     return acc;
-  }, {} as Record<string, { total: number; completed: number }>);
+  }, {} as Record<string, TypeStats>);
 
   const mostProductiveType = Object.entries(typeStats)
-    .map(([type, stats]) => ({
+    .map(([type, stats]: [string, TypeStats]) => ({
       type,
       completionRate: stats.total > 0 ? (stats.completed / stats.total) * 100 : 0,
       total: stats.total
