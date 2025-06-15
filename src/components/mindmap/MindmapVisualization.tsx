@@ -1,5 +1,10 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { TransformWrapper, TransformComponent, useControls } from 'react-zoom-pan-pinch';
+import {
+  TransformWrapper,
+  TransformComponent,
+  useControls,
+  ReactZoomPanPinchRef
+} from 'react-zoom-pan-pinch';
 
 export interface MindmapNode {
   id: string;
@@ -8,7 +13,7 @@ export interface MindmapNode {
   parentId?: string;
   position: { x: number; y: number };
   style?: { color?: string; size?: string };
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface MindmapConnection {
@@ -64,11 +69,17 @@ const MindmapVisualization: React.FC<MindmapVisualizationProps> = ({
   const nodes = useMemo(() => [mindmap.rootNode, ...mindmap.nodes], [mindmap]);
   const nodeMap = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes]);
 
-  const handleTransformed = useCallback((ref: any, state: any) => {
-    const newVp = { x: state.positionX, y: state.positionY, scale: state.scale };
-    setViewport(newVp);
-    if (onViewportChange) onViewportChange(newVp);
-  }, [onViewportChange]);
+  const handleTransformed = useCallback(
+    (
+      ref: ReactZoomPanPinchRef,
+      state: { positionX: number; positionY: number; scale: number }
+    ) => {
+      const newVp = { x: state.positionX, y: state.positionY, scale: state.scale };
+      setViewport(newVp);
+      if (onViewportChange) onViewportChange(newVp);
+    },
+    [onViewportChange]
+  );
 
   const visibleNodes = useMemo(() => {
     const padding = 100;
