@@ -5,15 +5,17 @@ import { supabase } from '@/integrations/supabase/client';
 import AppLayout from '@/components/AppLayout';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import EditProjectModal from '@/components/EditProjectModal';
+import CreateTemplateModal from '@/components/CreateTemplateModal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FolderPlus, Search, Filter, Calendar, Edit, Trash2, Eye } from 'lucide-react';
+import { FolderPlus, Search, Filter, Calendar, Edit, Trash2, Eye, Save } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { format } from 'date-fns';
 import { useEnhancedTemplates } from '@/hooks/useEnhancedTemplates';
+import { useFeatures } from '@/hooks/useFeatures';
 import type { CreateProjectData } from '@/components/CreateProjectModal';
 
 interface Project {
@@ -31,14 +33,17 @@ const Projects = () => {
   const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [templateProject, setTemplateProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const navigate = useNavigate();
   const { showSuccess, showError } = useNotifications();
   const { applyTemplate } = useEnhancedTemplates();
+  const { features } = useFeatures();
 
   useEffect(() => {
     fetchProjects();
@@ -93,6 +98,28 @@ const Projects = () => {
         return 'bg-gray-100 text-gray-800';
       default:
         return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const handleSaveAsTemplate = async (project: Project) => {
+    try {
+      // Fetch project features to include in template
+      const { data: features, error } = await supabase
+        .from('features')
+        .select('title, description, priority')
+        .eq('project_id', project.id)
+        .order('order_index');
+
+      if (error) throw error;
+
+      setTemplateProject({
+        ...project,
+        features: features || []
+      } as any);
+      setShowTemplateModal(true);
+    } catch (error) {
+      console.error('Error fetching project features:', error);
+      showError('Failed to load project features. Please try again.');
     }
   };
 
@@ -277,6 +304,15 @@ const Projects = () => {
                       <Button
                         variant="ghost"
                         size="sm"
+                        onClick={() => handleSaveAsTemplate(project)}
+                        className="h-8 w-8 p-0 text-green-600 hover:text-green-800 hover:bg-green-50"
+                        title="Save as template"
+                      >
+                        <Save className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => handleEditProject(project)}
                         className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
                         title="Edit project"
@@ -333,6 +369,20 @@ const Projects = () => {
           }}
           onSuccess={handleEditSuccess}
           project={editingProject}
+        />
+
+        {/* Create Template Modal */}
+        <CreateTemplateModal
+          isOpen={showTemplateModal}
+          onClose={() => {
+            setShowTemplateModal(false);
+            setTemplateProject(null);
+          }}
+          projectData={templateProject ? {
+            name: templateProject.title,
+            description: templateProject.description || '',
+            features: (templateProject as any).features || []
+          } : undefined}
         />
       </div>
     </AppLayout>
