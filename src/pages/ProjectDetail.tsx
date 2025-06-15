@@ -90,7 +90,8 @@ const ProjectDetail = () => {
       .single();
     if (!error && data) {
       setMindmapId(data.id);
-      setMindmap(data.data as MindmapStructure);
+      // Safely convert Json to MindmapStructure
+      setMindmap(data.data as unknown as MindmapStructure);
     }
     setMindmapLoading(false);
   };
@@ -177,9 +178,13 @@ const ProjectDetail = () => {
   const syncMindmap = async (updated: MindmapStructure) => {
     if (!mindmapId) return;
     setMindmap(updated);
+    // Convert MindmapStructure to Json for database storage
     await supabase
       .from('mindmaps')
-      .update({ data: updated, updated_at: new Date().toISOString() })
+      .update({ 
+        data: updated as unknown as any, 
+        updated_at: new Date().toISOString() 
+      })
       .eq('id', mindmapId);
   };
 
