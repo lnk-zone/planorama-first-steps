@@ -482,7 +482,7 @@ const ProjectDetail = () => {
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
                   </div>
                 ) : mindmap ? (
-                  <MindmapVisualization mindmap={mindmap} onNodeClick={handleNodeClick} width={800} height={600} />
+                  <MindmapVisualization mindmap={mindmap} mindmapId={mindmapId || undefined} onNodeClick={handleNodeClick} width={800} height={600} />
                 ) : (
                   <div className="border-2 border-dashed border-gray-200 rounded-lg p-12 text-center">
                     <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
