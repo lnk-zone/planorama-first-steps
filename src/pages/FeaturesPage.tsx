@@ -4,7 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useFeatures } from '@/hooks/useFeatures';
 import AppLayout from '@/components/AppLayout';
 import FeatureCard from '@/components/FeatureCard';
-import FeatureHierarchy from '@/components/FeatureHierarchy';
+import EnhancedFeatureHierarchy from '@/components/EnhancedFeatureHierarchy';
 import DraggableFeatureList from '@/components/DraggableFeatureList';
 import BulkFeatureOperations from '@/components/BulkFeatureOperations';
 import AdvancedFeatureFilters, { type FeatureFilters } from '@/components/AdvancedFeatureFilters';
@@ -20,7 +20,8 @@ import {
   Layers,
   List,
   Shuffle,
-  Settings2
+  Settings2,
+  AlertTriangle
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import type { Feature } from '@/hooks/useFeatures';
@@ -88,6 +89,22 @@ const FeaturesPage = () => {
 
     return true;
   });
+
+  // Data integrity checks
+  const checkForCircularDependencies = (parentId: string, childId: string): boolean => {
+    const visited = new Set<string>();
+    const checkCircular = (currentId: string): boolean => {
+      if (visited.has(currentId)) return true;
+      visited.add(currentId);
+      
+      const feature = features.find(f => f.id === currentId);
+      if (!feature || !feature.parent_id) return false;
+      
+      return checkCircular(feature.parent_id);
+    };
+    
+    return checkCircular(childId);
+  };
 
   const handleSelectFeature = (featureId: string, selected: boolean) => {
     setSelectedFeatures(prev => 
@@ -177,6 +194,16 @@ const FeaturesPage = () => {
   };
 
   const handleAddChildFeature = async (parentId: string, featureData: any) => {
+    // Check for circular dependencies
+    if (checkForCircularDependencies(parentId, featureData.id || '')) {
+      toast({
+        title: "Error",
+        description: "Cannot create circular dependency between features.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       await addChildFeature(parentId, featureData);
       setParentFeatureForChild(null);
@@ -213,6 +240,18 @@ const FeaturesPage = () => {
   };
 
   const handleDeleteFeature = async (featureId: string) => {
+    const featureToDelete = features.find(f => f.id === featureId);
+    const childFeatures = features.filter(f => f.parent_id === featureId);
+    
+    let confirmMessage = 'Are you sure you want to delete this feature?';
+    if (childFeatures.length > 0) {
+      confirmMessage += ` This will also remove ${childFeatures.length} child feature${childFeatures.length > 1 ? 's' : ''} from their parent relationship.`;
+    }
+    
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
     try {
       await deleteFeature(featureId);
       toast({
@@ -393,12 +432,13 @@ const FeaturesPage = () => {
                 <p className="text-gray-600 mb-6">Add features to see them in hierarchy view.</p>
               </div>
             ) : (
-              <FeatureHierarchy
+              <EnhancedFeatureHierarchy
                 features={filteredFeatures}
                 onFeatureSelect={(feature) => console.log('Selected:', feature)}
                 onAddChild={handleAddChildClick}
                 onEdit={(feature) => setEditingFeature(feature)}
                 onDelete={handleDeleteFeature}
+                onReorder={handleReorderFeatures}
               />
             )}
           </TabsContent>

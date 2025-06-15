@@ -1,9 +1,11 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Edit, Trash2, Plus, MessageSquare } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import PriorityBadge from '@/components/ui/priority-badge';
+import StatusBadge from '@/components/ui/status-badge';
+import { Badge } from '@/components/ui/badge';
 import type { Feature } from '@/hooks/useFeatures';
 
 interface FeatureCardProps {
@@ -14,25 +16,6 @@ interface FeatureCardProps {
 }
 
 const FeatureCard = ({ feature, onEdit, onDelete, onAddChild }: FeatureCardProps) => {
-  const getPriorityColor = (priority: string | null) => {
-    switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'low': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusColor = (status: string | null) => {
-    switch (status) {
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'in-progress': return 'bg-blue-100 text-blue-800';
-      case 'planned': return 'bg-gray-100 text-gray-800';
-      case 'on-hold': return 'bg-orange-100 text-orange-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader className="pb-3">
@@ -42,12 +25,14 @@ const FeatureCard = ({ feature, onEdit, onDelete, onAddChild }: FeatureCardProps
               {feature.title}
             </CardTitle>
             <div className="flex flex-wrap gap-2">
-              <Badge className={getPriorityColor(feature.priority)}>
-                {(feature.priority || 'medium').charAt(0).toUpperCase() + (feature.priority || 'medium').slice(1)} Priority
-              </Badge>
-              <Badge className={getStatusColor(feature.status)}>
-                {(feature.status || 'planned').charAt(0).toUpperCase() + (feature.status || 'planned').slice(1)}
-              </Badge>
+              <PriorityBadge 
+                priority={(feature.priority as 'high' | 'medium' | 'low') || 'medium'} 
+                size="sm" 
+              />
+              <StatusBadge 
+                status={(feature.status as 'planned' | 'in-progress' | 'completed' | 'on-hold') || 'planned'} 
+                size="sm" 
+              />
               {feature.category && (
                 <Badge variant="outline">
                   {feature.category}
