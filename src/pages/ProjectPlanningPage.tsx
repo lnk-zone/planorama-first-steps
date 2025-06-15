@@ -39,10 +39,12 @@ const ProjectPlanningPage = () => {
   const { features, loading: featuresLoading } = useFeatures(id || '');
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [totalUserStories, setTotalUserStories] = useState(0);
 
   useEffect(() => {
     if (id && user) {
       fetchProject();
+      fetchUserStoriesCount();
     }
   }, [id, user]);
 
@@ -71,6 +73,43 @@ const ProjectPlanningPage = () => {
       console.error('Error fetching project:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUserStoriesCount = async () => {
+    if (!id) return;
+
+    try {
+      const { data: features, error: featuresError } = await supabase
+        .from('features')
+        .select('id')
+        .eq('project_id', id);
+
+      if (featuresError) {
+        console.error('Error fetching features:', featuresError);
+        return;
+      }
+
+      if (!features || features.length === 0) {
+        setTotalUserStories(0);
+        return;
+      }
+
+      const featureIds = features.map(f => f.id);
+      
+      const { data: userStories, error: storiesError } = await supabase
+        .from('user_stories')
+        .select('id')
+        .in('feature_id', featureIds);
+
+      if (storiesError) {
+        console.error('Error fetching user stories:', storiesError);
+        return;
+      }
+
+      setTotalUserStories(userStories?.length || 0);
+    } catch (error) {
+      console.error('Error fetching user stories count:', error);
     }
   };
 
@@ -152,7 +191,7 @@ const ProjectPlanningPage = () => {
 
             <TabsContent value="overview" className="space-y-6 mt-6">
               {/* Overview Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total Features</CardTitle>
@@ -160,6 +199,16 @@ const ProjectPlanningPage = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{planningStats.totalFeatures}</div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">User Stories</CardTitle>
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{totalUserStories}</div>
                   </CardContent>
                 </Card>
 
@@ -231,7 +280,6 @@ const ProjectPlanningPage = () => {
                 </CardContent>
               </Card>
 
-              {/* Quick Actions */}
               <Card>
                 <CardHeader>
                   <CardTitle>Quick Actions</CardTitle>
