@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { MindmapStructure } from '@/components/mindmap/MindmapVisualization';
@@ -7,19 +8,28 @@ export const useMindmap = (mindmapId?: string | null, initial?: MindmapStructure
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    if (!mindmapId) return;
+    if (!mindmapId) {
+      setLoading(false);
+      return;
+    }
 
     let channel: ReturnType<typeof supabase.channel> | null = null;
 
     const fetchMindmap = async () => {
-      const { data, error } = await supabase
-        .from('mindmaps')
-        .select('data')
-        .eq('id', mindmapId)
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from('mindmaps')
+          .select('data')
+          .eq('id', mindmapId)
+          .single();
 
-      if (!error && data) {
-        setMindmap(data.data as MindmapStructure);
+        if (!error && data && data.data) {
+          // Safely cast the Json type to MindmapStructure
+          const mindmapData = data.data as unknown as MindmapStructure;
+          setMindmap(mindmapData);
+        }
+      } catch (error) {
+        console.error('Error fetching mindmap:', error);
       }
       setLoading(false);
     };
@@ -32,8 +42,10 @@ export const useMindmap = (mindmapId?: string | null, initial?: MindmapStructure
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'mindmaps', filter: `id=eq.${mindmapId}` },
         payload => {
-          const newMap = payload.new?.data as MindmapStructure | undefined;
-          if (newMap) setMindmap(newMap);
+          if (payload.new?.data) {
+            const newMap = payload.new.data as unknown as MindmapStructure;
+            setMindmap(newMap);
+          }
         }
       )
       .subscribe();
