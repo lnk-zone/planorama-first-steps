@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { FileTemplate, Plus } from 'lucide-react';
+import { FileText, Plus } from 'lucide-react';
 import { useStoryTemplates } from '@/hooks/useStoryTemplates';
 import { toast } from '@/hooks/use-toast';
 import type { CreateUserStoryData } from '@/hooks/useUserStories';
@@ -63,7 +63,7 @@ const StoryTemplateModal = ({ isOpen, onClose, onApplyTemplate }: StoryTemplateM
       <DialogContent className="sm:max-w-[700px] max-h-[80vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FileTemplate className="h-5 w-5" />
+            <FileText className="h-5 w-5" />
             Story Templates
           </DialogTitle>
           <DialogDescription>
@@ -150,7 +150,7 @@ const StoryTemplateModal = ({ isOpen, onClose, onApplyTemplate }: StoryTemplateM
 
           {filteredTemplates.length === 0 && (
             <div className="text-center py-8 text-gray-500">
-              <FileTemplate className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No templates found in this category.</p>
             </div>
           )}
