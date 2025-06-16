@@ -9,12 +9,52 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      execution_plans: {
+        Row: {
+          created_at: string | null
+          estimated_total_hours: number
+          id: string
+          phases: Json
+          project_id: string | null
+          total_stories: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          estimated_total_hours: number
+          id?: string
+          phases?: Json
+          project_id?: string | null
+          total_stories: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          estimated_total_hours?: number
+          id?: string
+          phases?: Json
+          project_id?: string | null
+          total_stories?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "execution_plans_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       features: {
         Row: {
           category: string | null
           complexity: string | null
           created_at: string | null
           description: string | null
+          estimated_hours: number | null
+          execution_order: number | null
           id: string
           metadata: Json | null
           order_index: number | null
@@ -30,6 +70,8 @@ export type Database = {
           complexity?: string | null
           created_at?: string | null
           description?: string | null
+          estimated_hours?: number | null
+          execution_order?: number | null
           id?: string
           metadata?: Json | null
           order_index?: number | null
@@ -45,6 +87,8 @@ export type Database = {
           complexity?: string | null
           created_at?: string | null
           description?: string | null
+          estimated_hours?: number | null
+          execution_order?: number | null
           id?: string
           metadata?: Json | null
           order_index?: number | null
@@ -460,8 +504,12 @@ export type Database = {
       user_stories: {
         Row: {
           acceptance_criteria: string[] | null
+          complexity: string | null
           created_at: string | null
+          dependencies: Json | null
           description: string | null
+          estimated_hours: number | null
+          execution_order: number | null
           feature_id: string
           id: string
           priority: string | null
@@ -472,8 +520,12 @@ export type Database = {
         }
         Insert: {
           acceptance_criteria?: string[] | null
+          complexity?: string | null
           created_at?: string | null
+          dependencies?: Json | null
           description?: string | null
+          estimated_hours?: number | null
+          execution_order?: number | null
           feature_id: string
           id?: string
           priority?: string | null
@@ -484,8 +536,12 @@ export type Database = {
         }
         Update: {
           acceptance_criteria?: string[] | null
+          complexity?: string | null
           created_at?: string | null
+          dependencies?: Json | null
           description?: string | null
+          estimated_hours?: number | null
+          execution_order?: number | null
           feature_id?: string
           id?: string
           priority?: string | null

@@ -81,10 +81,10 @@ export class AIMindmapGenerator {
         // Update existing mindmap
         mindmapData = await this.updateMindmapRecord(existingMindmapId, aiResponse.mindmap);
         
-        // Create new features and stories
+        // Create new features and stories with enhanced dependency support
         features = await this.createFeaturesFromNodes(projectId, aiResponse.features);
         
-        this.updateProgress('generating_stories', 80, 'Regenerating user stories...');
+        this.updateProgress('generating_stories', 80, 'Regenerating user stories with dependencies...');
         userStories = await this.createUserStoriesFromFeatures(features, aiResponse.userStories);
         
         // Update mindmap with new feature mapping
@@ -94,7 +94,7 @@ export class AIMindmapGenerator {
         mindmapData = await this.createMindmapRecord(projectId, aiResponse.mindmap);
         features = await this.createFeaturesFromNodes(projectId, aiResponse.features);
         
-        this.updateProgress('generating_stories', 80, 'Generating user stories...');
+        this.updateProgress('generating_stories', 80, 'Generating user stories with dependencies...');
         userStories = await this.createUserStoriesFromFeatures(features, aiResponse.userStories);
         
         await this.linkMindmapToFeatures(mindmapData.id, features, aiResponse.mindmap);
@@ -219,16 +219,26 @@ Return JSON with this EXACT structure:
       "description": "Detailed feature description",
       "priority": "high|medium|low",
       "category": "core|ui|integration|admin",
-      "complexity": "low|medium|high"
+      "complexity": "low|medium|high",
+      "estimatedHours": 8
     }
   ],
   "userStories": [
     {
       "featureTitle": "Matching feature title",
-      "title": "As a [user type], I can [action]",
+      "title": "As a [user type], I can [action] so that [benefit]",
       "description": "Detailed user story description",
       "acceptanceCriteria": ["Criteria 1", "Criteria 2", "Criteria 3"],
-      "priority": "high|medium|low"
+      "priority": "high|medium|low",
+      "complexity": "low|medium|high",
+      "estimatedHours": 4,
+      "dependencies": [
+        {
+          "targetStoryTitle": "Title of story this depends on",
+          "type": "must_do_first",
+          "reason": "Clear explanation why this dependency exists"
+        }
+      ]
     }
   ]
 }
@@ -236,10 +246,12 @@ Return JSON with this EXACT structure:
 REQUIREMENTS:
 - Generate 6-12 main feature nodes
 - Position nodes in a logical visual hierarchy
-- Include rich descriptions and metadata
-- Generate 2-3 user stories per feature
+- Include rich descriptions and metadata with estimated hours
+- Generate 2-3 user stories per feature WITH dependencies
 - Focus on core functionality first, then supporting features
 - Use consistent color coding by category: #3b82f6 (core), #10b981 (ui), #f59e0b (integration), #ef4444 (admin)
+- Include realistic time estimates and dependency relationships
+- Focus on creating a clear execution order that prevents users from getting stuck
     `.trim();
   }
 
@@ -259,13 +271,15 @@ REQUIREMENTS:
   }
 
   private async createFeaturesFromNodes(projectId: string, aiFeatures: any[]): Promise<Feature[]> {
-    const features = aiFeatures.map(f => ({
+    const features = aiFeatures.map((f, index) => ({
       project_id: projectId,
       title: f.title,
       description: f.description,
       priority: f.priority || 'medium',
       category: f.category || 'core',
       complexity: f.complexity || 'medium',
+      estimated_hours: f.estimatedHours || 8,
+      execution_order: index + 1,
       metadata: {
         generated_by_ai: true,
         node_id: f.nodeId,
@@ -294,6 +308,9 @@ REQUIREMENTS:
           description: story.description,
           acceptance_criteria: story.acceptanceCriteria,
           priority: story.priority || 'medium',
+          complexity: story.complexity || 'medium',
+          estimated_hours: story.estimatedHours || 4,
+          dependencies: story.dependencies || [],
           status: 'draft'
         });
       }
