@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -23,14 +22,27 @@ serve(async (req) => {
     }
 
     const { projectId, platform } = await req.json();
+    console.log('Generating prompts for project:', projectId, 'platform:', platform);
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Gather project data with execution order
+    // Gather project data with proper user story fetching
     const projectData = await gatherProjectDataWithOrder(supabase, projectId);
+    console.log('Project data gathered:', {
+      projectTitle: projectData.project?.title,
+      featuresCount: projectData.features?.length || 0,
+      userStoriesCount: projectData.userStories?.length || 0,
+      executionPlan: projectData.executionPlan
+    });
     
     // Generate prompts
     const prompts = await generateUserStoryPrompts(projectData, platform);
+    console.log('Generated prompts:', {
+      phaseOverviews: prompts.phaseOverviews.length,
+      storyPrompts: prompts.storyPrompts.length,
+      transitionPrompts: prompts.transitionPrompts.length,
+      hasTroubleshootingGuide: !!prompts.troubleshootingGuide
+    });
     
     // Save to database
     await saveGeneratedPrompts(supabase, projectId, prompts, platform);
@@ -54,24 +66,78 @@ serve(async (req) => {
 });
 
 async function gatherProjectDataWithOrder(supabase: any, projectId: string) {
-  const [projectResult, featuresResult, userStoriesResult, executionPlanResult] = await Promise.all([
-    supabase.from('projects').select('*').eq('id', projectId).single(),
-    supabase.from('features').select('*').eq('project_id', projectId).order('execution_order'),
-    supabase.from('user_stories').select('*').eq('feature_id', projectId).order('execution_order'),
-    supabase.from('execution_plans').select('*').eq('project_id', projectId).single()
-  ]);
+  console.log('Fetching data for project:', projectId);
+
+  // Fetch project
+  const { data: project, error: projectError } = await supabase
+    .from('projects')
+    .select('*')
+    .eq('id', projectId)
+    .single();
+
+  if (projectError) {
+    console.error('Error fetching project:', projectError);
+    throw new Error(`Failed to fetch project: ${projectError.message}`);
+  }
+
+  // Fetch features for this project
+  const { data: features, error: featuresError } = await supabase
+    .from('features')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('execution_order');
+
+  if (featuresError) {
+    console.error('Error fetching features:', featuresError);
+    throw new Error(`Failed to fetch features: ${featuresError.message}`);
+  }
+
+  console.log('Features fetched:', features?.length || 0);
+
+  // Fetch user stories that belong to these features
+  let userStories = [];
+  if (features && features.length > 0) {
+    const featureIds = features.map(f => f.id);
+    const { data: storiesData, error: storiesError } = await supabase
+      .from('user_stories')
+      .select('*')
+      .in('feature_id', featureIds)
+      .order('execution_order');
+
+    if (storiesError) {
+      console.error('Error fetching user stories:', storiesError);
+      throw new Error(`Failed to fetch user stories: ${storiesError.message}`);
+    }
+
+    userStories = storiesData || [];
+  }
+
+  console.log('User stories fetched:', userStories.length);
+
+  // Fetch execution plan
+  const { data: executionPlan, error: executionPlanError } = await supabase
+    .from('execution_plans')
+    .select('*')
+    .eq('project_id', projectId)
+    .single();
+
+  if (executionPlanError && executionPlanError.code !== 'PGRST116') {
+    console.error('Error fetching execution plan:', executionPlanError);
+  }
 
   return {
-    project: projectResult.data,
-    features: featuresResult.data || [],
-    userStories: userStoriesResult.data || [],
-    executionPlan: executionPlanResult.data || { phases: [] }
+    project,
+    features: features || [],
+    userStories: userStories || [],
+    executionPlan: executionPlan || { phases: [], total_stories: userStories.length, estimated_total_hours: 0 }
   };
 }
 
 async function generateUserStoryPrompts(projectData: any, platform: string) {
-  const userStories = projectData.userStories.sort((a: any, b: any) => (a.execution_order || 999) - (b.execution_order || 999));
-  const phases = projectData.executionPlan.phases || [];
+  const userStories = (projectData.userStories || []).sort((a: any, b: any) => (a.execution_order || 999) - (b.execution_order || 999));
+  const phases = projectData.executionPlan?.phases || [];
+  
+  console.log('Generating prompts for', userStories.length, 'user stories and', phases.length, 'phases');
   
   const prompts: any = {
     phaseOverviews: [],
@@ -80,9 +146,22 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
     troubleshootingGuide: null
   };
 
-  // Generate phase overview prompts
-  for (const phase of phases) {
-    const phaseOverview = await generatePhaseOverviewPrompt(phase, projectData, platform);
+  // Generate phase overview prompts with actual user stories
+  if (phases.length > 0) {
+    for (let i = 0; i < phases.length; i++) {
+      const phase = phases[i];
+      const phaseStories = getStoriesForPhase(userStories, i + 1, phases.length);
+      const phaseOverview = generatePhaseOverviewPrompt(phase, phaseStories, projectData, platform, i + 1);
+      prompts.phaseOverviews.push(phaseOverview);
+    }
+  } else if (userStories.length > 0) {
+    // Create a single phase if no execution plan exists
+    const singlePhase = {
+      number: 1,
+      name: 'Development Phase',
+      description: 'Complete all user stories for this project'
+    };
+    const phaseOverview = generatePhaseOverviewPrompt(singlePhase, userStories, projectData, platform, 1);
     prompts.phaseOverviews.push(phaseOverview);
   }
 
@@ -103,50 +182,81 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
   }
 
   // Generate comprehensive troubleshooting guide
-  prompts.troubleshootingGuide = await generateTroubleshootingGuide(projectData, platform);
+  if (openAIApiKey) {
+    try {
+      prompts.troubleshootingGuide = await generateTroubleshootingGuide(projectData, platform);
+    } catch (error) {
+      console.error('Error generating troubleshooting guide:', error);
+      // Continue without troubleshooting guide if AI generation fails
+    }
+  }
 
   return prompts;
 }
 
-function generatePhaseOverviewPrompt(phase: any, projectData: any, platform: string) {
+function getStoriesForPhase(userStories: any[], phaseNumber: number, totalPhases: number) {
+  const storiesPerPhase = Math.ceil(userStories.length / totalPhases);
+  const startIndex = (phaseNumber - 1) * storiesPerPhase;
+  const endIndex = Math.min(startIndex + storiesPerPhase, userStories.length);
+  return userStories.slice(startIndex, endIndex);
+}
+
+function generatePhaseOverviewPrompt(phase: any, phaseStories: any[], projectData: any, platform: string, phaseNumber: number) {
+  const estimatedHours = phaseStories.reduce((sum, story) => sum + (story.estimated_hours || 4), 0);
+  
   return {
-    id: `phase-${phase.number}`,
-    title: `Phase ${phase.number} Overview`,
-    content: buildPhaseOverviewContent(phase, projectData, platform),
-    phaseNumber: phase.number,
+    id: `phase-${phaseNumber}`,
+    title: `Phase ${phaseNumber} Overview: ${phase.name || 'Development Phase'}`,
+    content: buildPhaseOverviewContent(phase, phaseStories, projectData, platform, estimatedHours),
+    phaseNumber: phaseNumber,
     platform
   };
 }
 
-function buildPhaseOverviewContent(phase: any, projectData: any, platform: string): string {
+function buildPhaseOverviewContent(phase: any, phaseStories: any[], projectData: any, platform: string, estimatedHours: number): string {
+  const storyList = phaseStories.length > 0 
+    ? phaseStories.map((story: any, i: number) => `${i + 1}. **${story.title}** - ${story.description || 'Complete this user story'}`).join('\n')
+    : 'No user stories in this phase';
+
   return `
-# PHASE ${phase.number} OVERVIEW: ${phase.name || 'Development Phase'}
+# PHASE ${phase.number || 1} OVERVIEW: ${phase.name || 'Development Phase'}
 
 ## 🎯 PHASE OBJECTIVES
-${phase.description || 'Complete the features in this development phase'}
+${phase.description || 'Complete the user stories in this development phase'}
 
-## 📋 FEATURES IN THIS PHASE
-${phase.features?.map((f: any, i: number) => `${i + 1}. **${f.title}** - ${f.description || 'Core functionality'}`).join('\n') || 'Features to be implemented'}
+## 📋 USER STORIES IN THIS PHASE
+${storyList}
 
 ## 🔧 PLATFORM APPROACH
 ${getPlatformApproach(platform)}
 
 ## ⏱️ ESTIMATED TIME
-**Total Phase Time:** ${phase.estimatedHours || 24} AI builder hours
+**Total Phase Time:** ${estimatedHours} AI builder hours
+**Stories Count:** ${phaseStories.length} user stories
 
 ## 🚀 GETTING STARTED
-1. Review all user stories in this phase
-2. Set up your development environment
+1. Review all user stories in this phase below
+2. Set up your development environment if not already done
 3. Start with the first story in execution order
-4. Test each feature before moving to the next
+4. Test each feature thoroughly before moving to the next
+5. Mark stories as complete as you finish them
 
 ## 📈 SUCCESS CRITERIA
-- All features in this phase are fully functional
-- UI is responsive and user-friendly
+- All user stories in this phase are fully functional
+- UI is responsive and works on mobile and desktop
 - Code is clean and well-documented
 - No console errors or warnings
+- All acceptance criteria are met for each story
 
-Ready to begin this phase!
+## 🔄 WORKFLOW
+1. **Read the story prompt** - Understand requirements and acceptance criteria
+2. **Plan your approach** - Break down the story into smaller tasks
+3. **Implement incrementally** - Build and test as you go
+4. **Verify completion** - Check all acceptance criteria
+5. **Mark as done** - Use the completion tracking
+6. **Move to next story** - Follow the execution order
+
+Ready to begin this phase! Start with the first user story below.
   `.trim();
 }
 
@@ -164,98 +274,123 @@ function generateStoryPrompt(story: any, previousStories: any[], nextStory: any,
 }
 
 function buildStoryPromptContent(story: any, previousStories: any[], nextStory: any, projectData: any, platform: string): string {
+  const previousStoriesList = previousStories.length > 0 
+    ? previousStories.map((s: any, i: number) => `${i + 1}. ${s.title} ✅`).join('\n')
+    : 'This is the first story in your project';
+
+  const dependenciesList = story.dependencies?.length > 0 
+    ? story.dependencies.map((dep: any) => 
+        `- ${dep.type === 'must_do_first' ? 'REQUIRES' : 'RELATED TO'}: "${dep.targetStoryTitle}" - ${dep.reason}`
+      ).join('\n')
+    : '';
+
+  const acceptanceCriteria = story.acceptance_criteria?.length > 0 
+    ? story.acceptance_criteria.map((criteria: string, i: number) => `${i + 1}. ${criteria}`).join('\n')
+    : '1. Feature works as described\n2. UI is responsive and user-friendly\n3. No console errors or warnings';
+
+  const acceptanceCriteriaChecklist = story.acceptance_criteria?.length > 0 
+    ? story.acceptance_criteria.map((criteria: string) => `✅ ${criteria}`).join('\n')
+    : '✅ Feature works as described\n✅ UI is responsive and user-friendly\n✅ No console errors or warnings\n✅ Code is clean and well-organized';
+
+  const testingSteps = story.acceptance_criteria?.length > 0 
+    ? story.acceptance_criteria.map((criteria: string, i: number) => `${i + 1}. Test: ${criteria}`).join('\n')
+    : '1. Test core functionality\n2. Test responsive design\n3. Test error handling';
+
   return `
 # STORY ${story.execution_order || 1}: ${story.title}
 
 ## 📋 CONTEXT
-We are building ${projectData.project.title}: ${projectData.project.description}
+We are building **${projectData.project?.title || 'this application'}**: ${projectData.project?.description || 'A comprehensive web application'}
 
 ${previousStories.length > 0 ? `
-WHAT WE'VE BUILT SO FAR:
-${previousStories.map((s: any, i: number) => `${i + 1}. ${s.title} ✅`).join('\n')}
+**WHAT WE'VE BUILT SO FAR:**
+${previousStoriesList}
+` : '**STARTING POINT:** This is your first user story - time to begin building!'}
+
+${dependenciesList ? `
+**DEPENDENCIES:**
+${dependenciesList}
 ` : ''}
 
-${story.dependencies?.length > 0 ? `
-DEPENDENCIES:
-${story.dependencies.map((dep: any) => 
-  `- ${dep.type === 'must_do_first' ? 'REQUIRES' : 'RELATED TO'}: "${dep.targetStoryTitle}" - ${dep.reason}`
-).join('\n')}
-` : ''}
-
-CURRENT FOCUS: ${story.description}
+**CURRENT FOCUS:** ${story.description || 'Implement this user story functionality'}
 
 ## 🎯 TASK
-${story.title}
+**${story.title}**
 
-DESCRIPTION: ${story.description}
+**DESCRIPTION:** ${story.description || 'Complete this user story according to the acceptance criteria below'}
 
 ${getPlatformApproach(platform)}
 
 ## 📝 REQUIREMENTS
 
-FUNCTIONAL REQUIREMENTS:
-${story.acceptance_criteria?.map((criteria: string, i: number) => `${i + 1}. ${criteria}`).join('\n') || '1. Feature works as described\n2. UI is responsive and user-friendly\n3. No console errors or warnings'}
+**FUNCTIONAL REQUIREMENTS:**
+${acceptanceCriteria}
 
-TECHNICAL REQUIREMENTS:
+**TECHNICAL REQUIREMENTS:**
 ${getTechnicalRequirements(platform)}
 
-QUALITY REQUIREMENTS:
+**QUALITY REQUIREMENTS:**
 - Code should be readable and well-commented
 - UI should be intuitive and user-friendly
 - Functionality should work as expected
 - No console errors or warnings
+- Follow established project patterns
 
 ## ✅ ACCEPTANCE CRITERIA
 
-DEFINITION OF DONE:
-${story.acceptance_criteria?.map((criteria: string) => `✅ ${criteria}`).join('\n') || '✅ Feature works as described\n✅ UI is responsive and user-friendly\n✅ No console errors or warnings\n✅ Code is clean and well-organized'}
+**DEFINITION OF DONE:**
+${acceptanceCriteriaChecklist}
 
-TESTING CHECKLIST:
+**TESTING CHECKLIST:**
 □ Manual testing completed
-□ Responsive design verified
+□ Responsive design verified (mobile & desktop)
 □ Error handling tested
 □ Integration with existing features verified
+□ All acceptance criteria validated
 
 ## 🔧 IMPLEMENTATION GUIDANCE
 
-STEP-BY-STEP APPROACH:
+**STEP-BY-STEP APPROACH:**
 ${getImplementationSteps(story, platform)}
 
-BEST PRACTICES:
-- Start with the simplest implementation
+**BEST PRACTICES:**
+- Start with the simplest implementation that works
 - Test each piece as you build it
 - Add error handling and loading states
 - Keep components focused and reusable
+- Follow the existing code structure and patterns
 
 ## 🧪 TESTING & VALIDATION
 
-MANUAL TESTING STEPS:
-${story.acceptance_criteria?.map((criteria: string, i: number) => `${i + 1}. Test: ${criteria}`).join('\n') || '1. Test core functionality\n2. Test responsive design\n3. Test error handling'}
+**MANUAL TESTING STEPS:**
+${testingSteps}
 
-VERIFICATION CHECKLIST:
+**VERIFICATION CHECKLIST:**
 □ Feature works in desktop browser
 □ Feature works on mobile devices
 □ Error states are handled gracefully
 □ Loading states are shown when appropriate
 □ Data persists correctly (if applicable)
 □ Integration with other features works
+□ No broken existing functionality
 
 ## ➡️ NEXT STEPS
 
-COMPLETION CHECKLIST:
+**COMPLETION CHECKLIST:**
 □ All acceptance criteria met
 □ Manual testing completed
 □ Code is clean and commented
 □ No console errors or warnings
+□ Story marked as complete in tracker
 
 ${nextStory ? `
-NEXT STORY: Story ${nextStory.execution_order}
+**NEXT STORY:** Story ${nextStory.execution_order || 'Next'}
 "${nextStory.title}"
-Preview: ${nextStory.description}
+Preview: ${nextStory.description || 'Continue with the next user story'}
 ` : `
-🎉 CONGRATULATIONS!
+🎉 **CONGRATULATIONS!**
 You've completed all user stories for this project!
-Time to test the complete application and deploy.
+Time to test the complete application end-to-end and deploy.
 `}
 
 ${getPlatformSpecificFooter(platform)}
@@ -267,29 +402,32 @@ function generateTransitionPrompt(story: any, nextStory: any, platform: string) 
     id: `transition-${story.id}-${nextStory.id}`,
     title: `Transition: ${story.title} → ${nextStory.title}`,
     content: `
-# 🔄 TRANSITION CHECKLIST
+# 🔄 TRANSITION CHECKPOINT
 
 ## ✅ JUST COMPLETED
-**Story ${story.execution_order}:** ${story.title}
+**Story ${story.execution_order || 'Previous'}:** ${story.title}
 
-Verify that:
+**Verify that:**
 □ All acceptance criteria are met
 □ Feature is fully tested
-□ No console errors
-□ Code is committed/saved
+□ No console errors or warnings
+□ Code is clean and committed/saved
+□ Story is marked as complete
 
 ## ➡️ NEXT UP
-**Story ${nextStory.execution_order}:** ${nextStory.title}
+**Story ${nextStory.execution_order || 'Next'}:** ${nextStory.title}
 
-Before starting:
-□ Take a short break
-□ Review the next story requirements
+**Before starting:**
+□ Take a short break if needed
+□ Review the next story requirements carefully
 □ Ensure your development environment is ready
-□ Commit your current progress
+□ Save/commit your current progress
 
-Ready to continue!
+**Preview:** ${nextStory.description || 'Ready to tackle the next user story'}
+
+Ready to continue building! 🚀
     `.trim(),
-    executionOrder: story.execution_order + 0.5,
+    executionOrder: (story.execution_order || 0) + 0.5,
     platform
   };
 }
@@ -332,14 +470,17 @@ async function generateTroubleshootingGuide(projectData: any, platform: string) 
 }
 
 function buildTroubleshootingPrompt(projectData: any, platform: string): string {
+  const featuresList = projectData.features?.map((f: any) => f.title).join(', ') || 'Various features';
+  
   return `
 Create a comprehensive troubleshooting guide for this project:
 
-PROJECT: ${projectData.project.title}
+PROJECT: ${projectData.project?.title || 'Web Application'}
 PLATFORM: ${platform}
-FEATURES: ${projectData.features.map((f: any) => f.title).join(', ')}
+FEATURES: ${featuresList}
+USER STORIES: ${projectData.userStories?.length || 0} total stories
 
-Generate a troubleshooting guide with these sections:
+Generate a practical troubleshooting guide with these sections:
 
 ## 🔧 GENERAL TROUBLESHOOTING
 
@@ -372,92 +513,96 @@ ${getPlatformSpecificTroubleshooting(platform)}
 ## 🔍 DEBUGGING PROCESS
 
 ### Step-by-Step Debugging
-1. Identify the problem
-2. Check browser console
-3. Verify requirements
-4. Test with minimal data
-5. Check integrations
-6. Review recent changes
+1. Identify the problem clearly
+2. Check browser console for errors
+3. Verify requirements and acceptance criteria
+4. Test with minimal/simple data first
+5. Check integrations with other components
+6. Review recent changes that might have caused issues
 
 ### Tools and Techniques
-- Browser Developer Tools
-- Console logging
-- Network tab analysis
+- Browser Developer Tools (F12)
+- Console logging for debugging
+- Network tab for API issues
+- React Developer Tools (if applicable)
 - Component inspection
 
 ## 🆘 WHEN TO ASK FOR HELP
 
 ### Before Asking for Help
-- Try the solutions in this guide
-- Check the browser console for errors
-- Test with simplified data
-- Review the story requirements
+- Try the solutions in this guide first
+- Check the browser console for specific error messages
+- Test with simplified data or isolated components
+- Review the story requirements and acceptance criteria
+- Document what you've already tried
 
 ### How to Ask for Help Effectively
-- Describe what you're trying to achieve
-- Explain what you've tried
-- Include error messages
-- Share relevant code snippets
+- Describe clearly what you're trying to achieve
+- Explain step-by-step what you've tried
+- Include specific error messages (copy & paste)
+- Share relevant code snippets if needed
+- Mention which user story you're working on
 
 ### Where to Get Help
-- Platform documentation
-- Community forums
-- Stack Overflow
-- Platform-specific Discord/Slack
+- Platform documentation and community
+- Stack Overflow for technical questions
+- GitHub issues for platform-specific problems
+- Discord/Slack communities for real-time help
 
 ## 🔄 ROLLBACK STRATEGIES
 
 ### When Things Go Wrong
-1. Save your current progress
-2. Identify the last working state
-3. Revert to that point
-4. Try a different approach
-5. Ask for guidance on the new approach
+1. Don't panic - save your current progress first
+2. Identify the last known working state
+3. Consider reverting to that point if necessary
+4. Try a different, simpler approach
+5. Break the problem into smaller pieces
+6. Ask for guidance on alternative approaches
 
 ### Backup Best Practices
-- Commit changes frequently
-- Test before moving to next story
-- Keep notes of what works
-- Document successful patterns
+- Save/commit changes frequently
+- Test thoroughly before moving to next story
+- Keep notes of what works and what doesn't
+- Document successful patterns for reuse
 
-Make this guide practical and immediately useful for non-technical users!
+Make this guide immediately actionable for non-technical users building their app story by story!
   `.trim();
 }
 
 function getPlatformApproach(platform: string): string {
   const approaches: { [key: string]: string } = {
     lovable: `
-LOVABLE APPROACH:
+**LOVABLE APPROACH:**
 - Use React with TypeScript and Tailwind CSS
 - Implement with shadcn-ui components where appropriate
 - Use Supabase for any backend functionality
 - Follow React best practices and hooks patterns`,
     bolt: `
-BOLT APPROACH:
+**BOLT APPROACH:**
 - Create clean, modern web application code
 - Use best practices for file organization
 - Implement responsive design principles
 - Focus on user experience and performance`,
     cursor: `
-CURSOR APPROACH:
+**CURSOR APPROACH:**
 - Write clean, well-documented code
 - Use appropriate design patterns
 - Implement proper error handling
 - Follow coding best practices`,
     claude: `
-CLAUDE APPROACH:
+**CLAUDE APPROACH:**
 - Focus on clear, maintainable code structure
 - Implement comprehensive error handling
 - Use modern development patterns
 - Prioritize code readability and documentation`,
     replit: `
-REPLIT APPROACH:
+**REPLIT APPROACH:**
 - Build with collaborative development in mind
 - Use environment-specific configurations
 - Implement clean separation of concerns
 - Focus on rapid prototyping and iteration`,
     windsurf: `
-WINDSURF APPROACH:
+**WINDSURF APPROACH:**
 - Leverage AI-assisted development workflows
 - Implement efficient code generation patterns
 - Use modern tooling and frameworks
@@ -501,22 +646,22 @@ function getImplementationSteps(story: any, platform: string): string {
 
 2. **Create the Basic Structure**
    - Set up the main component files
-   - Create necessary interfaces/types
+   - Create necessary interfaces/types (if using TypeScript)
    - Implement basic component structure
 
 3. **Implement Core Functionality**
    - Add the main business logic
-   - Implement data fetching/saving
-   - Handle user interactions
+   - Implement data fetching/saving if needed
+   - Handle user interactions and events
 
 4. **Style and Polish**
-   - Apply appropriate styling
-   - Ensure responsive design
+   - Apply appropriate styling (Tailwind/CSS)
+   - Ensure responsive design works properly
    - Add loading and error states
 
 5. **Test and Validate**
-   - Test all acceptance criteria
-   - Check for edge cases
+   - Test all acceptance criteria thoroughly
+   - Check for edge cases and error scenarios
    - Verify integration with existing features`;
 }
 
@@ -525,21 +670,24 @@ function getPlatformSpecificFooter(platform: string): string {
     lovable: `
 ## 💡 LOVABLE-SPECIFIC TIPS
 - Use the built-in components from shadcn-ui when possible
-- Leverage Supabase for data persistence
+- Leverage Supabase for data persistence and real-time features
 - Take advantage of TypeScript for better development experience
-- Use Tailwind classes for consistent styling`,
+- Use Tailwind classes for consistent styling
+- Test in the preview pane as you build`,
     bolt: `
 ## 💡 BOLT-SPECIFIC TIPS
 - Focus on clean, maintainable code structure
 - Use environment variables for configuration
 - Implement proper error handling throughout
-- Test across different browsers and devices`,
+- Test across different browsers and devices
+- Optimize for performance and loading speed`,
     cursor: `
 ## 💡 CURSOR-SPECIFIC TIPS
 - Leverage AI assistance for code generation
 - Use proper code organization patterns
 - Implement comprehensive error handling
-- Document your code for future reference`
+- Document your code for future reference
+- Use version control for tracking changes`
   };
   
   return footers[platform] || footers.lovable;
@@ -594,6 +742,8 @@ function parseTroubleshootingSections(content: string) {
 }
 
 async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: any, platform: string) {
+  console.log('Saving generated prompts to database...');
+
   // Clear existing prompts for this project/platform
   await supabase
     .from('generated_prompts')
@@ -609,7 +759,7 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
 
   // Save phase overviews
   for (const phase of prompts.phaseOverviews) {
-    await supabase
+    const { error } = await supabase
       .from('generated_prompts')
       .insert({
         project_id: projectId,
@@ -621,11 +771,15 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
         execution_order: phase.phaseNumber * 1000,
         phase_number: phase.phaseNumber
       });
+
+    if (error) {
+      console.error('Error saving phase overview:', error);
+    }
   }
 
   // Save story prompts
   for (const story of prompts.storyPrompts) {
-    await supabase
+    const { error } = await supabase
       .from('generated_prompts')
       .insert({
         project_id: projectId,
@@ -636,11 +790,15 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
         content: story.content,
         execution_order: story.executionOrder
       });
+
+    if (error) {
+      console.error('Error saving story prompt:', error);
+    }
   }
 
   // Save transition prompts
   for (const transition of prompts.transitionPrompts) {
-    await supabase
+    const { error } = await supabase
       .from('generated_prompts')
       .insert({
         project_id: projectId,
@@ -651,11 +809,15 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
         content: transition.content,
         execution_order: transition.executionOrder
       });
+
+    if (error) {
+      console.error('Error saving transition prompt:', error);
+    }
   }
 
   // Save troubleshooting guide
   if (prompts.troubleshootingGuide) {
-    await supabase
+    const { error } = await supabase
       .from('troubleshooting_guides')
       .insert({
         project_id: projectId,
@@ -663,5 +825,11 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
         content: prompts.troubleshootingGuide.content,
         sections: prompts.troubleshootingGuide.sections
       });
+
+    if (error) {
+      console.error('Error saving troubleshooting guide:', error);
+    }
   }
+
+  console.log('Successfully saved generated prompts to database');
 }
