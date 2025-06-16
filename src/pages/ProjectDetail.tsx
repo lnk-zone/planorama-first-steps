@@ -44,10 +44,12 @@ const ProjectDetail = () => {
   useEffect(() => {
     if (id && user) {
       fetchProject();
+      fetchMindmap(); // Fetch mindmap on initial load to set hasMindmap state correctly
     }
   }, [id, user]);
 
   useEffect(() => {
+    // Keep this for when users switch to mindmap tab to refresh the data
     if (activeTab === 'mindmap' && id) {
       fetchMindmap();
     }
@@ -348,17 +350,17 @@ const ProjectDetail = () => {
           
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">{project.title}</h1>
-              <p className="text-gray-600 mb-4">{project.description}</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">{project?.title}</h1>
+              <p className="text-gray-600 mb-4">{project?.description}</p>
               <div className="flex items-center space-x-4">
-                <Badge className={getStatusColor(project.status)}>
-                  {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
+                <Badge className={getStatusColor(project?.status || '')}>
+                  {project?.status.charAt(0).toUpperCase() + project?.status.slice(1)}
                 </Badge>
                 <span className="text-sm text-gray-500">
-                  Created {new Date(project.created_at).toLocaleDateString()}
+                  Created {project && new Date(project.created_at).toLocaleDateString()}
                 </span>
                 <span className="text-sm text-gray-500">
-                  Updated {new Date(project.updated_at).toLocaleDateString()}
+                  Updated {project && new Date(project.updated_at).toLocaleDateString()}
                 </span>
               </div>
             </div>
@@ -488,8 +490,8 @@ const ProjectDetail = () => {
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold">Recent Activity</h3>
                     <div className="text-sm text-gray-500">
-                      <p>Project created {new Date(project.created_at).toLocaleDateString()}</p>
-                      <p>Last updated {new Date(project.updated_at).toLocaleDateString()}</p>
+                      <p>Project created {project && new Date(project.created_at).toLocaleDateString()}</p>
+                      <p>Last updated {project && new Date(project.updated_at).toLocaleDateString()}</p>
                     </div>
                   </div>
                 </div>
