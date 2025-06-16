@@ -28,7 +28,7 @@ const ProjectDetail: React.FC = () => {
   const { features, loading: featuresLoading, refetch: refetchFeatures } = useFeatures(id || '');
   const { userStories, loading: storiesLoading, refetch: refetchStories } = useUserStories(features.map(f => f.id));
 
-  const [activeTab, setActiveTab] = useState('features');
+  const [activeTab, setActiveTab] = useState('metrics');
   const [showAIFeatureModal, setShowAIFeatureModal] = useState(false);
   const [showFeatureGenerationModal, setShowFeatureGenerationModal] = useState(false);
   const [showAddFeatureModal, setShowAddFeatureModal] = useState(false);
@@ -208,16 +208,21 @@ const ProjectDetail: React.FC = () => {
         {/* Main Content */}
         {hasFeatures ? (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <TabsList className="grid w-full max-w-2xl grid-cols-5">
-                <TabsTrigger value="features">Features</TabsTrigger>
-                <TabsTrigger value="execution">Execution</TabsTrigger>
-                <TabsTrigger value="metrics">Metrics</TabsTrigger>
-                <TabsTrigger value="prd">PRD</TabsTrigger>
-                <TabsTrigger value="prompts">Prompts</TabsTrigger>
-              </TabsList>
-              
-              <div className="flex gap-2">
+            <TabsList className="grid w-full max-w-2xl grid-cols-5">
+              <TabsTrigger value="metrics">Metrics</TabsTrigger>
+              <TabsTrigger value="features">Features</TabsTrigger>
+              <TabsTrigger value="execution">Execution</TabsTrigger>
+              <TabsTrigger value="prd">PRD</TabsTrigger>
+              <TabsTrigger value="prompts">Prompts</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="metrics" className="space-y-4">
+              <ProjectMetrics projects={[project]} />
+            </TabsContent>
+
+            <TabsContent value="features" className="space-y-4">
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -235,9 +240,8 @@ const ProjectDetail: React.FC = () => {
                   Add Feature
                 </Button>
               </div>
-            </div>
 
-            <TabsContent value="features" className="space-y-4">
+              {/* Features Grid */}
               <div className="grid gap-4">
                 {features.map((feature) => (
                   <CollapsibleFeatureCard
@@ -257,10 +261,6 @@ const ProjectDetail: React.FC = () => {
                 userStories={userStories}
                 executionPlan={mockExecutionPlan}
               />
-            </TabsContent>
-
-            <TabsContent value="metrics" className="space-y-4">
-              <ProjectMetrics projects={[project]} />
             </TabsContent>
 
             <TabsContent value="prd" className="space-y-4">
