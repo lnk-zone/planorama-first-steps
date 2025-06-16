@@ -151,10 +151,12 @@ const PromptsTab: React.FC<PromptsTabProps> = ({
         return true;
       }
       
-      // Fallback: if phase_number is null or undefined, use execution order to assign
-      if (!story.phase_number && phase.phase_number === 1) {
-        console.log(`Fallback: Assigning story "${story.title}" to Phase 1 due to null phase_number`);
-        return true;
+      // Fallback: if phase_number is null or undefined, distribute by execution order
+      if (!story.phase_number) {
+        const executionOrder = story.execution_order || 0;
+        if (phase.phase_number === 1 && executionOrder <= 6) return true;
+        if (phase.phase_number === 2 && executionOrder >= 7 && executionOrder <= 10) return true;
+        if (phase.phase_number === 3 && executionOrder >= 11) return true;
       }
       
       return false;
@@ -174,9 +176,12 @@ const PromptsTab: React.FC<PromptsTabProps> = ({
   });
 
   // Handle orphaned stories (stories without proper phase assignment)
-  const orphanedStories = storyPrompts.filter(story => 
-    !story.phase_number || !phaseOverviews.some(phase => phase.phase_number === story.phase_number)
-  );
+  const orphanedStories = storyPrompts.filter(story => {
+    const assignedToPhase = phases.some(phase => 
+      phase.stories.some(s => s.id === story.id)
+    );
+    return !assignedToPhase;
+  });
 
   if (orphanedStories.length > 0) {
     console.warn('Found orphaned stories without proper phase assignment:', orphanedStories.map(s => s.title));
@@ -420,18 +425,19 @@ const PromptsTab: React.FC<PromptsTabProps> = ({
                                             )}
                                           </Button>
                                         </div>
-                                      </CollapsibleTrigger>
-                                      
-                                      <CollapsibleContent>
-                                        <CardContent>
-                                          <Textarea
-                                            value={story.content}
-                                            readOnly
-                                            className="min-h-[300px] text-sm font-mono resize-none"
-                                          />
-                                        </CardContent>
-                                      </CollapsibleContent>
-                                    </Collapsible>
+                                      </CardHeader>
+                                    </CollapsibleTrigger>
+                                    
+                                    <CollapsibleContent>
+                                      <CardContent>
+                                        <Textarea
+                                          value={story.content}
+                                          readOnly
+                                          className="min-h-[300px] text-sm font-mono resize-none"
+                                        />
+                                      </CardContent>
+                                    </CollapsibleContent>
+                                  </Collapsible>
                                 </Card>
                               ))
                             ) : (
