@@ -121,6 +121,10 @@ const ProjectDetail: React.FC = () => {
     setShowEditProjectModal(false);
   };
 
+  const handleStoryUpdate = async () => {
+    await refetchStories();
+  };
+
   const hasFeatures = features.length > 0;
   const totalStories = userStories.length;
   const completedStories = userStories.filter(s => s.status === 'completed').length;
@@ -200,9 +204,8 @@ const ProjectDetail: React.FC = () => {
         {hasFeatures ? (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <TabsList className="grid w-full max-w-2xl grid-cols-3 sm:grid-cols-6">
+              <TabsList className="grid w-full max-w-2xl grid-cols-5">
                 <TabsTrigger value="features">Features</TabsTrigger>
-                <TabsTrigger value="user-stories">Stories</TabsTrigger>
                 <TabsTrigger value="execution">Execution</TabsTrigger>
                 <TabsTrigger value="metrics">Metrics</TabsTrigger>
                 <TabsTrigger value="prd">PRD</TabsTrigger>
@@ -238,18 +241,9 @@ const ProjectDetail: React.FC = () => {
                     onEdit={handleEdit}
                     onDelete={handleDelete}
                     onAddChild={handleAddChild}
+                    onStoryUpdate={handleStoryUpdate}
                   />
                 ))}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="user-stories" className="space-y-4">
-              <div className="text-center py-8">
-                <Users className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">All User Stories</h3>
-                <p className="text-gray-600">
-                  View and manage all user stories across features
-                </p>
               </div>
             </TabsContent>
 

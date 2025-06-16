@@ -4,13 +4,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronRight, Clock, Target } from 'lucide-react';
+import { ChevronDown, ChevronRight, Clock, Target, Edit } from 'lucide-react';
 
 interface UserStoryMiniCardProps {
   story: any;
+  onEdit: (story: any) => void;
 }
 
-const UserStoryMiniCard: React.FC<UserStoryMiniCardProps> = ({ story }) => {
+const UserStoryMiniCard: React.FC<UserStoryMiniCardProps> = ({ story, onEdit }) => {
   const [showCriteria, setShowCriteria] = useState(false);
 
   const getStatusColor = (status: string) => {
@@ -47,6 +48,15 @@ const UserStoryMiniCard: React.FC<UserStoryMiniCardProps> = ({ story }) => {
             {story.title}
           </h4>
           <div className="flex items-center gap-1 ml-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onEdit(story)}
+              className="h-6 w-6 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+              title="Edit story"
+            >
+              <Edit className="h-3 w-3" />
+            </Button>
             <Badge className={getStatusColor(story.status)} variant="secondary">
               {story.status || 'Todo'}
             </Badge>
