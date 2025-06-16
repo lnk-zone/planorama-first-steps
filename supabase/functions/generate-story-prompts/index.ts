@@ -44,7 +44,7 @@ serve(async (req) => {
       hasTroubleshootingGuide: !!prompts.troubleshootingGuide
     });
     
-    // Save to database
+    // Save to database - this will clear existing prompts first
     await saveGeneratedPrompts(supabase, projectId, prompts, platform);
 
     return new Response(JSON.stringify({ 
@@ -146,39 +146,27 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
     troubleshootingGuide: null
   };
 
-  // Create a comprehensive map of story titles to phase numbers
+  // Create phase assignment map - improved logic
   const storyToPhaseMap = new Map();
   
-  // Log the phases structure for debugging
-  console.log('Phases structure:', JSON.stringify(phases, null, 2));
+  console.log('Creating phase assignment mapping...');
   
-  phases.forEach((phase: any, index: number) => {
-    const phaseNumber = index + 1;
-    console.log(`Processing phase ${phaseNumber}:`, phase.name);
-    
-    if (phase.stories && Array.isArray(phase.stories)) {
-      console.log(`Phase ${phaseNumber} has ${phase.stories.length} stories:`, phase.stories);
+  if (phases.length > 0) {
+    phases.forEach((phase: any, index: number) => {
+      const phaseNumber = index + 1;
+      console.log(`Processing phase ${phaseNumber}: "${phase.name}" with ${phase.stories?.length || 0} stories`);
       
-      phase.stories.forEach((storyTitle: string) => {
-        // Store multiple variations of the title for better matching
-        const cleanTitle = storyTitle.toLowerCase().trim();
-        storyToPhaseMap.set(cleanTitle, phaseNumber);
-        storyToPhaseMap.set(storyTitle, phaseNumber); // Original case
-        
-        console.log(`Mapped story "${storyTitle}" to phase ${phaseNumber}`);
-        
-        // Also try without common prefixes
-        const withoutAs = cleanTitle.replace(/^as\s+(?:a|an)\s+[^,]+,?\s*/i, '').trim();
-        if (withoutAs !== cleanTitle) {
-          storyToPhaseMap.set(withoutAs, phaseNumber);
-        }
-      });
-    } else {
-      console.log(`Phase ${phaseNumber} has no stories array or it's empty`);
-    }
-  });
+      if (phase.stories && Array.isArray(phase.stories)) {
+        phase.stories.forEach((storyTitle: string) => {
+          // Store the phase number for each story title
+          storyToPhaseMap.set(storyTitle.toLowerCase().trim(), phaseNumber);
+          console.log(`Mapped story "${storyTitle}" to phase ${phaseNumber}`);
+        });
+      }
+    });
+  }
 
-  console.log('Final story to phase mapping:', Object.fromEntries(storyToPhaseMap));
+  console.log('Phase mapping complete. Total mappings:', storyToPhaseMap.size);
 
   // Generate phase overview prompts
   if (phases.length > 0) {
@@ -202,45 +190,56 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
     prompts.phaseOverviews.push(phaseOverview);
   }
 
-  // Generate individual story prompts for ALL user stories with correct phase assignment
+  // Generate individual story prompts with correct phase assignment
   for (let i = 0; i < userStories.length; i++) {
     const story = userStories[i];
     const previousStories = userStories.slice(0, i);
     const nextStory = userStories[i + 1];
     
-    // Determine which phase this story belongs to using multiple matching strategies
+    // Determine phase using improved logic
     let storyPhase = 1; // Default to phase 1
     
-    console.log(`\nProcessing story "${story.title}" for phase assignment...`);
+    console.log(`\n--- Assigning phase for story: "${story.title}" ---`);
     
     // Try exact title match first
-    if (storyToPhaseMap.has(story.title)) {
-      storyPhase = storyToPhaseMap.get(story.title);
-      console.log(`✓ Exact match found: "${story.title}" -> Phase ${storyPhase}`);
-    } else if (storyToPhaseMap.has(story.title.toLowerCase().trim())) {
-      storyPhase = storyToPhaseMap.get(story.title.toLowerCase().trim());
-      console.log(`✓ Case-insensitive match found: "${story.title}" -> Phase ${storyPhase}`);
+    const storyTitleLower = story.title.toLowerCase().trim();
+    if (storyToPhaseMap.has(storyTitleLower)) {
+      storyPhase = storyToPhaseMap.get(storyTitleLower);
+      console.log(`✓ Direct match: "${story.title}" -> Phase ${storyPhase}`);
     } else {
-      // Try partial matching - find which phase contains a story with similar title
-      const storyTitleLower = story.title.toLowerCase().trim();
-      let foundMatch = false;
+      // Try fuzzy matching - look for partial matches
+      let bestMatch = null;
+      let bestMatchPhase = 1;
       
       for (const [mappedTitle, phaseNum] of storyToPhaseMap.entries()) {
-        if (typeof mappedTitle === 'string') {
-          const mappedTitleLower = mappedTitle.toLowerCase().trim();
-          
-          // Check if either title contains the other
-          if (storyTitleLower.includes(mappedTitleLower) || mappedTitleLower.includes(storyTitleLower)) {
-            storyPhase = phaseNum;
-            console.log(`✓ Partial match found: "${story.title}" matches "${mappedTitle}" -> Phase ${storyPhase}`);
-            foundMatch = true;
-            break;
-          }
+        // Check if either title contains key words from the other
+        const storyWords = storyTitleLower.split(' ').filter(w => w.length > 3);
+        const mappedWords = mappedTitle.split(' ').filter(w => w.length > 3);
+        
+        const commonWords = storyWords.filter(word => mappedWords.some(mw => mw.includes(word) || word.includes(mw)));
+        
+        if (commonWords.length > 0) {
+          bestMatch = mappedTitle;
+          bestMatchPhase = phaseNum;
+          console.log(`⚡ Fuzzy match: "${story.title}" matches "${mappedTitle}" -> Phase ${phaseNum} (common words: ${commonWords.join(', ')})`);
+          break;
         }
       }
       
-      if (!foundMatch) {
-        console.log(`⚠ No match found for "${story.title}", defaulting to Phase ${storyPhase}`);
+      if (bestMatch) {
+        storyPhase = bestMatchPhase;
+      } else {
+        // Fallback: distribute by execution order if no match found
+        const executionOrder = story.execution_order || i + 1;
+        if (phases.length >= 3) {
+          if (executionOrder <= 6) storyPhase = 1;
+          else if (executionOrder <= 10) storyPhase = 2;
+          else storyPhase = 3;
+        } else if (phases.length >= 2) {
+          if (executionOrder <= Math.ceil(userStories.length / 2)) storyPhase = 1;
+          else storyPhase = 2;
+        }
+        console.log(`⚠ No match found, using execution order fallback: "${story.title}" -> Phase ${storyPhase} (execution_order: ${executionOrder})`);
       }
     }
     
@@ -256,7 +255,10 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
     }
   }
 
-  console.log('Generated individual story prompts with phases:', prompts.storyPrompts.map(s => ({ title: s.title, phase: s.phaseNumber })));
+  console.log('\n=== FINAL PHASE ASSIGNMENTS ===');
+  prompts.storyPrompts.forEach((s: any) => {
+    console.log(`Story: "${s.title}" -> Phase ${s.phaseNumber}`);
+  });
 
   // Generate comprehensive troubleshooting guide
   if (openAIApiKey) {
@@ -365,7 +367,7 @@ function generateStoryPrompt(story: any, previousStories: any[], nextStory: any,
     content: buildStoryPromptContent(story, previousStories, nextStory, projectData, platform),
     executionOrder: story.execution_order || 1,
     platform,
-    phaseNumber, // This is critical - make sure this is passed correctly
+    phaseNumber, // CRITICAL: This must be set correctly
     dependencies: story.dependencies || [],
     estimatedTime: story.estimated_hours || 4,
     acceptanceCriteria: story.acceptance_criteria || []
@@ -807,7 +809,7 @@ function getPlatformSpecificTroubleshooting(platform: string): string {
 - **JavaScript errors**: Check syntax and browser compatibility
 - **Performance problems**: Optimize images and code splitting`,
     cursor: `
-- **Code completion issues**: Check language server and extensions
+-**Code completion issues**: Check language server and extensions
 - **Refactoring problems**: Verify code structure and dependencies
 - **Debugging difficulties**: Use proper debugging tools and techniques
 - **Integration issues**: Check API connections and data flow`
@@ -842,20 +844,34 @@ function parseTroubleshootingSections(content: string) {
 }
 
 async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: any, platform: string) {
-  console.log('Saving generated prompts to database...');
+  console.log('🧹 Clearing existing prompts for project/platform...');
 
-  // Clear existing prompts for this project/platform
-  await supabase
+  // CRITICAL: Clear existing prompts FIRST to ensure regeneration replaces old data
+  const { error: deletePromptsError } = await supabase
     .from('generated_prompts')
     .delete()
     .eq('project_id', projectId)
     .eq('platform', platform);
 
-  await supabase
+  if (deletePromptsError) {
+    console.error('Error clearing existing prompts:', deletePromptsError);
+  } else {
+    console.log('✓ Successfully cleared existing prompts');
+  }
+
+  const { error: deleteGuideError } = await supabase
     .from('troubleshooting_guides')
     .delete()
     .eq('project_id', projectId)
     .eq('platform', platform);
+
+  if (deleteGuideError) {
+    console.error('Error clearing existing troubleshooting guide:', deleteGuideError);
+  } else {
+    console.log('✓ Successfully cleared existing troubleshooting guide');
+  }
+
+  console.log('💾 Saving new prompts to database...');
 
   // Save phase overviews
   for (const phase of prompts.phaseOverviews) {
@@ -875,30 +891,40 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
 
     if (error) {
       console.error('Error saving phase overview:', error);
+    } else {
+      console.log(`✓ Successfully saved phase overview for Phase ${phase.phaseNumber}`);
     }
   }
 
-  // Save story prompts with correct phase_number - THIS IS THE CRITICAL FIX
+  // Save story prompts with CORRECT phase_number - THIS IS THE CRITICAL FIX
   for (const story of prompts.storyPrompts) {
-    console.log(`Saving story prompt: "${story.title}" to phase ${story.phaseNumber} (execution_order: ${story.executionOrder})`);
+    console.log(`💾 Saving story: "${story.title}" with phase_number: ${story.phaseNumber}, execution_order: ${story.executionOrder}`);
+    
+    const insertData = {
+      project_id: projectId,
+      user_story_id: story.id,
+      platform,
+      prompt_type: 'story',
+      title: story.title,
+      content: story.content,
+      execution_order: story.executionOrder,
+      phase_number: story.phaseNumber // CRITICAL: Ensure this is set correctly
+    };
+    
+    console.log(`Database insert data for "${story.title}":`, {
+      phase_number: insertData.phase_number,
+      execution_order: insertData.execution_order,
+      prompt_type: insertData.prompt_type
+    });
+
     const { error } = await supabase
       .from('generated_prompts')
-      .insert({
-        project_id: projectId,
-        user_story_id: story.id,
-        platform,
-        prompt_type: 'story',
-        title: story.title,
-        content: story.content,
-        execution_order: story.executionOrder,
-        phase_number: story.phaseNumber // CRITICAL: Make sure this is set correctly
-      });
+      .insert(insertData);
 
     if (error) {
-      console.error('Error saving story prompt:', error);
-      console.error('Story data:', { title: story.title, phaseNumber: story.phaseNumber, executionOrder: story.executionOrder });
+      console.error(`❌ Error saving story "${story.title}":`, error);
     } else {
-      console.log(`✓ Successfully saved story "${story.title}" to phase ${story.phaseNumber}`);
+      console.log(`✅ Successfully saved story "${story.title}" with phase_number: ${story.phaseNumber}`);
     }
   }
 
@@ -920,6 +946,8 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
 
     if (error) {
       console.error('Error saving transition prompt:', error);
+    } else {
+      console.log(`✓ Successfully saved transition for Phase ${transition.phaseNumber}`);
     }
   }
 
@@ -937,8 +965,23 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
 
     if (error) {
       console.error('Error saving troubleshooting guide:', error);
+    } else {
+      console.log('✓ Successfully saved troubleshooting guide');
     }
   }
 
-  console.log('✓ Successfully saved all generated prompts to database');
+  console.log('🎉 Successfully saved all generated prompts to database');
+  
+  // Verify what was saved
+  const { data: savedPrompts } = await supabase
+    .from('generated_prompts')
+    .select('id, title, prompt_type, phase_number, execution_order')
+    .eq('project_id', projectId)
+    .eq('platform', platform)
+    .order('execution_order');
+
+  console.log('✅ VERIFICATION - Saved prompts in database:');
+  savedPrompts?.forEach((p: any) => {
+    console.log(`  - ${p.prompt_type}: "${p.title}" | phase: ${p.phase_number} | order: ${p.execution_order}`);
+  });
 }
