@@ -218,8 +218,8 @@ const ProjectDetail: React.FC = () => {
                   size="sm"
                   onClick={() => setShowFeatureGenerationModal(true)}
                 >
-                  <Zap className="h-4 w-4 mr-2" />
-                  Generate More
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Regenerate Features
                 </Button>
                 <Button
                   variant="outline"
