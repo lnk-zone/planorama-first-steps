@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -71,6 +70,18 @@ const FeatureGenerationModal: React.FC<FeatureGenerationModalProps> = ({
     setProgress(null);
   };
 
+  // Map progress stages to GenerationProgress component expected stages
+  const mapProgressStage = (stage: GenerationProgressData['stage']) => {
+    switch (stage) {
+      case 'analyzing': return 'analyzing';
+      case 'generating_features': return 'creating_features';
+      case 'creating_stories': return 'generating_stories';
+      case 'calculating_order': return 'generating_stories';
+      case 'complete': return 'complete';
+      default: return 'analyzing';
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -135,7 +146,7 @@ const FeatureGenerationModal: React.FC<FeatureGenerationModalProps> = ({
 
           {isGenerating && progress && (
             <GenerationProgress
-              stage={progress.stage}
+              stage={mapProgressStage(progress.stage)}
               progress={progress.progress}
               currentAction={progress.currentAction}
             />

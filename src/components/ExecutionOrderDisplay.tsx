@@ -50,8 +50,12 @@ const ExecutionOrderDisplay: React.FC<ExecutionOrderDisplayProps> = ({
   };
 
   const getDependencyInfo = (story: UserStory) => {
-    const dependencies = story.dependencies as Dependency[] || [];
-    return dependencies;
+    if (!story.dependencies) return [];
+    try {
+      return story.dependencies as unknown as Dependency[];
+    } catch {
+      return [];
+    }
   };
 
   const getCompletedStories = () => {
