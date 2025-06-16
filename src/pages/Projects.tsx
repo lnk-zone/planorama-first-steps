@@ -6,16 +6,14 @@ import { supabase } from '@/integrations/supabase/client';
 import AppLayout from '@/components/AppLayout';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import EditProjectModal from '@/components/EditProjectModal';
-import CreateTemplateModal from '@/components/CreateTemplateModal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FolderPlus, Search, Filter, Calendar, Edit, Trash2, Save } from 'lucide-react';
+import { FolderPlus, Search, Filter, Calendar, Edit, Trash2 } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { format } from 'date-fns';
-import { useEnhancedTemplates } from '@/hooks/useEnhancedTemplates';
 import type { CreateProjectData } from '@/components/CreateProjectModal';
 
 interface Project {
@@ -29,30 +27,17 @@ interface Project {
   updated_at: string;
 }
 
-interface TemplateProjectData {
-  name: string;
-  description: string;
-  features: {
-    title: string;
-    description: string;
-    priority: string;
-  }[];
-}
-
 const Projects = () => {
   const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
-  const [templateProjectData, setTemplateProjectData] = useState<TemplateProjectData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const navigate = useNavigate();
   const { showSuccess, showError } = useNotifications();
-  const { applyTemplate } = useEnhancedTemplates();
 
   useEffect(() => {
     fetchProjects();
@@ -110,39 +95,6 @@ const Projects = () => {
     }
   };
 
-  const handleSaveAsTemplate = async (project: Project, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent card navigation
-    try {
-      console.log('Starting template creation for project:', project.id);
-      
-      const { data: features, error } = await supabase
-        .from('features')
-        .select('title, description, priority')
-        .eq('project_id', project.id)
-        .order('order_index');
-
-      if (error) {
-        console.error('Error fetching project features:', error);
-        showError('Failed to load project features. Please try again.');
-        return;
-      }
-
-      console.log('Fetched features for template:', features);
-
-      const templateData: TemplateProjectData = {
-        name: project.title,
-        description: project.description || '',
-        features: features || []
-      };
-
-      setTemplateProjectData(templateData);
-      setShowTemplateModal(true);
-    } catch (error) {
-      console.error('Error preparing template data:', error);
-      showError('Failed to prepare template data. Please try again.');
-    }
-  };
-
   const handleEditProject = (project: Project, event: React.MouseEvent) => {
     event.stopPropagation(); // Prevent card navigation
     setEditingProject(project);
@@ -195,10 +147,6 @@ const Projects = () => {
         .single();
 
       if (error) throw error;
-
-      if (projectData.template) {
-        await applyTemplate(projectData.template.id, project.id);
-      }
 
       showSuccess('Project created successfully');
       setShowCreateModal(false);
@@ -324,15 +272,6 @@ const Projects = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={(e) => handleSaveAsTemplate(project, e)}
-                        className="h-8 w-8 p-0 text-green-600 hover:text-green-800 hover:bg-green-50"
-                        title="Save as template"
-                      >
-                        <Save className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
                         onClick={(e) => handleEditProject(project, e)}
                         className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
                         title="Edit project"
@@ -388,15 +327,6 @@ const Projects = () => {
           }}
           onSuccess={handleEditSuccess}
           project={editingProject}
-        />
-
-        <CreateTemplateModal
-          isOpen={showTemplateModal}
-          onClose={() => {
-            setShowTemplateModal(false);
-            setTemplateProjectData(null);
-          }}
-          projectData={templateProjectData}
         />
       </div>
     </AppLayout>
