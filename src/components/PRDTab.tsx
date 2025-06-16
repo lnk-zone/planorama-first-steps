@@ -254,7 +254,7 @@ const PRDTab: React.FC<PRDTabProps> = ({ projectTitle, projectDescription }) => 
             <CardContent className="pt-6">
               <div className="prose max-w-none">
                 <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
-                  {p rd.content}
+                  {prd.content}
                 </pre>
               </div>
             </CardContent>
