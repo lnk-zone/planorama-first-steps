@@ -21,7 +21,8 @@ import {
   Download,
   CheckCircle,
   Circle,
-  BookOpen
+  BookOpen,
+  AlertCircle
 } from 'lucide-react';
 import { useStoryPrompts } from '@/hooks/useStoryPrompts';
 import { toast } from '@/hooks/use-toast';
@@ -131,21 +132,39 @@ const PromptsTab: React.FC<PromptsTabProps> = ({
   const storyPrompts = prompts.filter(p => p.prompt_type === 'story');
   const transitionPrompts = prompts.filter(p => p.prompt_type === 'transition');
 
+  console.log('Debug - All prompts:', prompts.length);
+  console.log('Debug - Phase overviews:', phaseOverviews.length);
+  console.log('Debug - Story prompts:', storyPrompts.length);
+  console.log('Debug - Story prompts with phase info:', storyPrompts.map(s => ({ title: s.title, phase_number: s.phase_number })));
+
   // Calculate progress
   const totalStories = storyPrompts.length;
   const completedStories = storyPrompts.filter(p => p.user_story_id && isStoryComplete(p.user_story_id)).length;
   const progressPercentage = totalStories > 0 ? (completedStories / totalStories) * 100 : 0;
 
-  // Group by phases using the phase_number field directly
+  // Group by phases with fallback logic
   const phases = phaseOverviews.map(phase => {
     // Get stories that belong to this phase using the phase_number field
-    const phaseStories = storyPrompts.filter(story => 
-      story.phase_number === phase.phase_number
-    );
+    const phaseStories = storyPrompts.filter(story => {
+      // First try exact phase match
+      if (story.phase_number === phase.phase_number) {
+        return true;
+      }
+      
+      // Fallback: if phase_number is null or undefined, use execution order to assign
+      if (!story.phase_number && phase.phase_number === 1) {
+        console.log(`Fallback: Assigning story "${story.title}" to Phase 1 due to null phase_number`);
+        return true;
+      }
+      
+      return false;
+    });
 
     const phaseTransitions = transitionPrompts.filter(transition => 
       transition.phase_number === phase.phase_number
     );
+    
+    console.log(`Phase ${phase.phase_number} has ${phaseStories.length} stories`);
     
     return {
       ...phase,
@@ -153,6 +172,15 @@ const PromptsTab: React.FC<PromptsTabProps> = ({
       transitions: phaseTransitions
     };
   });
+
+  // Handle orphaned stories (stories without proper phase assignment)
+  const orphanedStories = storyPrompts.filter(story => 
+    !story.phase_number || !phaseOverviews.some(phase => phase.phase_number === story.phase_number)
+  );
+
+  if (orphanedStories.length > 0) {
+    console.warn('Found orphaned stories without proper phase assignment:', orphanedStories.map(s => s.title));
+  }
 
   if (isLoading) {
     return (
@@ -250,6 +278,22 @@ const PromptsTab: React.FC<PromptsTabProps> = ({
               </div>
             </div>
 
+            {/* Debug Info (remove in production) */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <h4 className="font-semibold text-yellow-800 mb-2">Debug Information</h4>
+                <div className="text-sm text-yellow-700 space-y-1">
+                  <div>Total prompts: {prompts.length}</div>
+                  <div>Phase overviews: {phaseOverviews.length}</div>
+                  <div>Story prompts: {storyPrompts.length}</div>
+                  <div>Orphaned stories: {orphanedStories.length}</div>
+                  {orphanedStories.length > 0 && (
+                    <div>Orphaned: {orphanedStories.map(s => s.title).join(', ')}</div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Prompts Content */}
             {prompts.length === 0 ? (
               <Card>
@@ -269,115 +313,113 @@ const PromptsTab: React.FC<PromptsTabProps> = ({
               </Card>
             ) : (
               <div className="space-y-4">
-                {phases.length > 0 ? (
-                  // Phase-grouped view
-                  phases.map(phase => (
-                    <Card key={phase.id} className="border-2">
-                      <Collapsible
-                        open={expandedPhases.has(phase.phase_number || 1)}
-                        onOpenChange={() => togglePhaseExpansion(phase.phase_number || 1)}
-                      >
-                        <CollapsibleTrigger asChild>
-                          <CardHeader className="cursor-pointer hover:bg-gray-50">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                {expandedPhases.has(phase.phase_number || 1) ? (
-                                  <ChevronDown className="h-4 w-4" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4" />
-                                )}
-                                <CardTitle className="text-lg">{phase.title}</CardTitle>
-                                <Badge variant="outline">
-                                  {phase.stories.length} stories
-                                </Badge>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCopyToClipboard(phase.content, phase.id);
-                                }}
-                              >
-                                {copiedIndex === phase.id ? (
-                                  <Check className="h-4 w-4 text-green-600" />
-                                ) : (
-                                  <Copy className="h-4 w-4" />
-                                )}
-                              </Button>
+                {/* Phase-grouped view */}
+                {phases.map(phase => (
+                  <Card key={phase.id} className="border-2">
+                    <Collapsible
+                      open={expandedPhases.has(phase.phase_number || 1)}
+                      onOpenChange={() => togglePhaseExpansion(phase.phase_number || 1)}
+                    >
+                      <CollapsibleTrigger asChild>
+                        <CardHeader className="cursor-pointer hover:bg-gray-50">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              {expandedPhases.has(phase.phase_number || 1) ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                              <CardTitle className="text-lg">{phase.title}</CardTitle>
+                              <Badge variant="outline">
+                                {phase.stories.length} stories
+                              </Badge>
                             </div>
-                          </CardHeader>
-                        </CollapsibleTrigger>
-                        
-                        <CollapsibleContent>
-                          <CardContent>
-                            <Textarea
-                              value={phase.content}
-                              readOnly
-                              className="min-h-[200px] text-sm font-mono resize-none mb-4"
-                            />
-                            
-                            {/* Stories in this phase */}
-                            <div className="space-y-3">
-                              <h4 className="font-semibold text-gray-900">Stories in this phase:</h4>
-                              {phase.stories.length > 0 ? (
-                                phase.stories.map(story => (
-                                  <Card key={story.id} className="bg-gray-50 border border-gray-200">
-                                    <Collapsible
-                                      open={expandedStories.has(story.id)}
-                                      onOpenChange={() => toggleStoryExpansion(story.id)}
-                                    >
-                                      <CollapsibleTrigger asChild>
-                                        <CardHeader className="pb-3 cursor-pointer hover:bg-gray-100">
-                                          <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                              {expandedStories.has(story.id) ? (
-                                                <ChevronDown className="h-4 w-4" />
-                                              ) : (
-                                                <ChevronRight className="h-4 w-4" />
-                                              )}
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  story.user_story_id && toggleStoryComplete(story.user_story_id);
-                                                }}
-                                                className="p-1"
-                                              >
-                                                {story.user_story_id && isStoryComplete(story.user_story_id) ? (
-                                                  <CheckCircle className="h-5 w-5 text-green-600" />
-                                                ) : (
-                                                  <Circle className="h-5 w-5 text-gray-400" />
-                                                )}
-                                              </Button>
-                                              <CardTitle className="text-base">{story.title}</CardTitle>
-                                              <Badge variant="secondary" className="text-xs">
-                                                {story.content.length} chars
-                                              </Badge>
-                                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyToClipboard(phase.content, phase.id);
+                              }}
+                            >
+                              {copiedIndex === phase.id ? (
+                                <Check className="h-4 w-4 text-green-600" />
+                              ) : (
+                                <Copy className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </CardHeader>
+                      </CollapsibleTrigger>
+                      
+                      <CollapsibleContent>
+                        <CardContent>
+                          <Textarea
+                            value={phase.content}
+                            readOnly
+                            className="min-h-[200px] text-sm font-mono resize-none mb-4"
+                          />
+                          
+                          {/* Stories in this phase */}
+                          <div className="space-y-3">
+                            <h4 className="font-semibold text-gray-900">Stories in this phase:</h4>
+                            {phase.stories.length > 0 ? (
+                              phase.stories.map(story => (
+                                <Card key={story.id} className="bg-white border border-gray-300">
+                                  <Collapsible
+                                    open={expandedStories.has(story.id)}
+                                    onOpenChange={() => toggleStoryExpansion(story.id)}
+                                  >
+                                    <CollapsibleTrigger asChild>
+                                      <CardHeader className="pb-3 cursor-pointer hover:bg-gray-50">
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-3">
+                                            {expandedStories.has(story.id) ? (
+                                              <ChevronDown className="h-4 w-4" />
+                                            ) : (
+                                              <ChevronRight className="h-4 w-4" />
+                                            )}
                                             <Button
-                                              variant="outline"
+                                              variant="ghost"
                                               size="sm"
                                               onClick={(e) => {
                                                 e.stopPropagation();
-                                                handleCopyToClipboard(story.content, story.id);
+                                                story.user_story_id && toggleStoryComplete(story.user_story_id);
                                               }}
+                                              className="p-1"
                                             >
-                                              {copiedIndex === story.id ? (
-                                                <>
-                                                  <Check className="h-4 w-4 text-green-600 mr-2" />
-                                                  Copied!
-                                                </>
+                                              {story.user_story_id && isStoryComplete(story.user_story_id) ? (
+                                                <CheckCircle className="h-5 w-5 text-green-600" />
                                               ) : (
-                                                <>
-                                                  <Copy className="h-4 w-4 mr-2" />
-                                                  Copy
-                                                </>
+                                                <Circle className="h-5 w-5 text-gray-400" />
                                               )}
                                             </Button>
+                                            <CardTitle className="text-base">{story.title}</CardTitle>
+                                            <Badge variant="secondary" className="text-xs">
+                                              {Math.ceil(story.content.length / 1000)}k chars
+                                            </Badge>
                                           </div>
-                                        </CardHeader>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleCopyToClipboard(story.content, story.id);
+                                            }}
+                                          >
+                                            {copiedIndex === story.id ? (
+                                              <>
+                                                <Check className="h-4 w-4 text-green-600 mr-2" />
+                                                Copied!
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Copy className="h-4 w-4 mr-2" />
+                                                Copy
+                                              </>
+                                            )}
+                                          </Button>
+                                        </div>
                                       </CollapsibleTrigger>
                                       
                                       <CollapsibleContent>
@@ -390,90 +432,49 @@ const PromptsTab: React.FC<PromptsTabProps> = ({
                                         </CardContent>
                                       </CollapsibleContent>
                                     </Collapsible>
-                                  </Card>
-                                ))
-                              ) : (
-                                <p className="text-gray-500 italic">No individual story prompts found for this phase.</p>
-                              )}
-                            </div>
-                          </CardContent>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    </Card>
-                  ))
-                ) : (
-                  // Flat view for stories without phases
-                  storyPrompts.map(story => (
-                    <Card key={story.id} className="border-2">
-                      <Collapsible
-                        open={expandedStories.has(story.id)}
-                        onOpenChange={() => toggleStoryExpansion(story.id)}
-                      >
-                        <CollapsibleTrigger asChild>
-                          <CardHeader className="cursor-pointer hover:bg-gray-50">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                {expandedStories.has(story.id) ? (
-                                  <ChevronDown className="h-4 w-4" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4" />
-                                )}
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    story.user_story_id && toggleStoryComplete(story.user_story_id);
-                                  }}
-                                  className="p-1"
-                                >
-                                  {story.user_story_id && isStoryComplete(story.user_story_id) ? (
-                                    <CheckCircle className="h-5 w-5 text-green-600" />
-                                  ) : (
-                                    <Circle className="h-5 w-5 text-gray-400" />
-                                  )}
-                                </Button>
-                                <CardTitle className="text-lg">{story.title}</CardTitle>
-                                <Badge variant="outline" className="text-xs">
-                                  {story.content.length} chars
-                                </Badge>
+                                </Card>
+                              ))
+                            ) : (
+                              <div className="flex items-center gap-2 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                <AlertCircle className="h-4 w-4 text-yellow-600" />
+                                <p className="text-yellow-700 text-sm">
+                                  No stories found for this phase. Try regenerating prompts.
+                                </p>
                               </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCopyToClipboard(story.content, story.id);
-                                }}
-                              >
-                                {copiedIndex === story.id ? (
-                                  <>
-                                    <Check className="h-4 w-4 text-green-600 mr-2" />
-                                    Copied!
-                                  </>
-                                ) : (
-                                  <>
-                                    <Copy className="h-4 w-4 mr-2" />
-                                    Copy Prompt
-                                  </>
-                                )}
-                              </Button>
-                            </div>
-                          </CardHeader>
-                        </CollapsibleTrigger>
-                        
-                        <CollapsibleContent>
-                          <CardContent>
-                            <Textarea
-                              value={story.content}
-                              readOnly
-                              className="min-h-[400px] text-sm font-mono resize-none"
-                            />
-                          </CardContent>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    </Card>
-                  ))
+                            )}
+                          </div>
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </Card>
+                ))}
+
+                {/* Show orphaned stories if any */}
+                {orphanedStories.length > 0 && (
+                  <Card className="border-2 border-yellow-300">
+                    <CardHeader>
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="h-5 w-5 text-yellow-600" />
+                        <CardTitle className="text-lg text-yellow-800">Unassigned Stories</CardTitle>
+                        <Badge variant="outline" className="bg-yellow-100">
+                          {orphanedStories.length} stories
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-yellow-700 mb-4">
+                        These stories couldn't be assigned to phases. Try regenerating prompts to fix this.
+                      </p>
+                      <div className="space-y-2">
+                        {orphanedStories.map(story => (
+                          <div key={story.id} className="p-2 bg-yellow-50 rounded border border-yellow-200">
+                            <p className="font-medium text-yellow-800">{story.title}</p>
+                            <p className="text-xs text-yellow-600">Phase: {story.phase_number || 'null'}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
               </div>
             )}

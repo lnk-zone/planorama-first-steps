@@ -32,7 +32,7 @@ serve(async (req) => {
       projectTitle: projectData.project?.title,
       featuresCount: projectData.features?.length || 0,
       userStoriesCount: projectData.userStories?.length || 0,
-      executionPlan: projectData.executionPlan
+      phasesCount: projectData.executionPlan?.phases?.length || 0
     });
     
     // Generate prompts
@@ -148,14 +148,24 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
 
   // Create a comprehensive map of story titles to phase numbers
   const storyToPhaseMap = new Map();
+  
+  // Log the phases structure for debugging
+  console.log('Phases structure:', JSON.stringify(phases, null, 2));
+  
   phases.forEach((phase: any, index: number) => {
     const phaseNumber = index + 1;
+    console.log(`Processing phase ${phaseNumber}:`, phase.name);
+    
     if (phase.stories && Array.isArray(phase.stories)) {
+      console.log(`Phase ${phaseNumber} has ${phase.stories.length} stories:`, phase.stories);
+      
       phase.stories.forEach((storyTitle: string) => {
         // Store multiple variations of the title for better matching
         const cleanTitle = storyTitle.toLowerCase().trim();
         storyToPhaseMap.set(cleanTitle, phaseNumber);
         storyToPhaseMap.set(storyTitle, phaseNumber); // Original case
+        
+        console.log(`Mapped story "${storyTitle}" to phase ${phaseNumber}`);
         
         // Also try without common prefixes
         const withoutAs = cleanTitle.replace(/^as\s+(?:a|an)\s+[^,]+,?\s*/i, '').trim();
@@ -163,17 +173,19 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
           storyToPhaseMap.set(withoutAs, phaseNumber);
         }
       });
+    } else {
+      console.log(`Phase ${phaseNumber} has no stories array or it's empty`);
     }
   });
 
-  console.log('Story to phase mapping created:', Object.fromEntries(storyToPhaseMap));
+  console.log('Final story to phase mapping:', Object.fromEntries(storyToPhaseMap));
 
-  // Generate phase overview prompts with proper story mapping
+  // Generate phase overview prompts
   if (phases.length > 0) {
     for (let i = 0; i < phases.length; i++) {
       const phase = phases[i];
       const phaseStories = getStoriesForPhaseByTitle(userStories, phase);
-      console.log(`Phase ${i + 1} mapped stories:`, phaseStories.length, 'out of', phase.stories?.length || 0, 'expected');
+      console.log(`Phase ${i + 1} "${phase.name}" mapped stories:`, phaseStories.length, 'out of', phase.stories?.length || 0, 'expected');
       
       const phaseOverview = generatePhaseOverviewPrompt(phase, phaseStories, projectData, platform, i + 1);
       prompts.phaseOverviews.push(phaseOverview);
@@ -199,27 +211,40 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
     // Determine which phase this story belongs to using multiple matching strategies
     let storyPhase = 1; // Default to phase 1
     
+    console.log(`\nProcessing story "${story.title}" for phase assignment...`);
+    
     // Try exact title match first
     if (storyToPhaseMap.has(story.title)) {
       storyPhase = storyToPhaseMap.get(story.title);
+      console.log(`✓ Exact match found: "${story.title}" -> Phase ${storyPhase}`);
     } else if (storyToPhaseMap.has(story.title.toLowerCase().trim())) {
       storyPhase = storyToPhaseMap.get(story.title.toLowerCase().trim());
+      console.log(`✓ Case-insensitive match found: "${story.title}" -> Phase ${storyPhase}`);
     } else {
       // Try partial matching - find which phase contains a story with similar title
       const storyTitleLower = story.title.toLowerCase().trim();
+      let foundMatch = false;
+      
       for (const [mappedTitle, phaseNum] of storyToPhaseMap.entries()) {
         if (typeof mappedTitle === 'string') {
           const mappedTitleLower = mappedTitle.toLowerCase().trim();
+          
+          // Check if either title contains the other
           if (storyTitleLower.includes(mappedTitleLower) || mappedTitleLower.includes(storyTitleLower)) {
             storyPhase = phaseNum;
-            console.log(`Matched story "${story.title}" to phase ${phaseNum} via partial match with "${mappedTitle}"`);
+            console.log(`✓ Partial match found: "${story.title}" matches "${mappedTitle}" -> Phase ${storyPhase}`);
+            foundMatch = true;
             break;
           }
         }
       }
+      
+      if (!foundMatch) {
+        console.log(`⚠ No match found for "${story.title}", defaulting to Phase ${storyPhase}`);
+      }
     }
     
-    console.log(`Story "${story.title}" assigned to phase ${storyPhase}`);
+    console.log(`Final assignment: Story "${story.title}" -> Phase ${storyPhase}`);
     
     const storyPrompt = generateStoryPrompt(story, previousStories, nextStory, projectData, platform, storyPhase);
     prompts.storyPrompts.push(storyPrompt);
@@ -340,7 +365,7 @@ function generateStoryPrompt(story: any, previousStories: any[], nextStory: any,
     content: buildStoryPromptContent(story, previousStories, nextStory, projectData, platform),
     executionOrder: story.execution_order || 1,
     platform,
-    phaseNumber, // Make sure this is set correctly
+    phaseNumber, // This is critical - make sure this is passed correctly
     dependencies: story.dependencies || [],
     estimatedTime: story.estimated_hours || 4,
     acceptanceCriteria: story.acceptance_criteria || []
@@ -501,9 +526,9 @@ function generateTransitionPrompt(story: any, nextStory: any, platform: string, 
 
 Ready to continue building! 🚀
     `.trim(),
-    executionOrder: Math.floor((story.execution_order || 0) * 1000) + 500, // Use integer for transition order
+    executionOrder: Math.floor((story.execution_order || 0) * 1000) + 500,
     platform,
-    phaseNumber // Make sure transitions also get the correct phase number
+    phaseNumber
   };
 }
 
@@ -834,6 +859,7 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
 
   // Save phase overviews
   for (const phase of prompts.phaseOverviews) {
+    console.log(`Saving phase overview: ${phase.title} (Phase ${phase.phaseNumber})`);
     const { error } = await supabase
       .from('generated_prompts')
       .insert({
@@ -852,9 +878,9 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
     }
   }
 
-  // Save story prompts with correct phase_number
+  // Save story prompts with correct phase_number - THIS IS THE CRITICAL FIX
   for (const story of prompts.storyPrompts) {
-    console.log(`Saving story prompt: ${story.title} to phase ${story.phaseNumber}`);
+    console.log(`Saving story prompt: "${story.title}" to phase ${story.phaseNumber} (execution_order: ${story.executionOrder})`);
     const { error } = await supabase
       .from('generated_prompts')
       .insert({
@@ -865,16 +891,20 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
         title: story.title,
         content: story.content,
         execution_order: story.executionOrder,
-        phase_number: story.phaseNumber // This is the key fix
+        phase_number: story.phaseNumber // CRITICAL: Make sure this is set correctly
       });
 
     if (error) {
       console.error('Error saving story prompt:', error);
+      console.error('Story data:', { title: story.title, phaseNumber: story.phaseNumber, executionOrder: story.executionOrder });
+    } else {
+      console.log(`✓ Successfully saved story "${story.title}" to phase ${story.phaseNumber}`);
     }
   }
 
   // Save transition prompts with phase_number
   for (const transition of prompts.transitionPrompts) {
+    console.log(`Saving transition prompt: ${transition.title} (Phase ${transition.phaseNumber})`);
     const { error } = await supabase
       .from('generated_prompts')
       .insert({
@@ -895,6 +925,7 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
 
   // Save troubleshooting guide
   if (prompts.troubleshootingGuide) {
+    console.log('Saving troubleshooting guide...');
     const { error } = await supabase
       .from('troubleshooting_guides')
       .insert({
@@ -909,5 +940,5 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
     }
   }
 
-  console.log('Successfully saved generated prompts to database');
+  console.log('✓ Successfully saved all generated prompts to database');
 }
