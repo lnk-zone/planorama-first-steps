@@ -146,11 +146,13 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
     troubleshootingGuide: null
   };
 
-  // Generate phase overview prompts with actual user stories
+  // Generate phase overview prompts with proper story mapping
   if (phases.length > 0) {
     for (let i = 0; i < phases.length; i++) {
       const phase = phases[i];
-      const phaseStories = getStoriesForPhase(userStories, i + 1, phases.length);
+      const phaseStories = getStoriesForPhaseByTitle(userStories, phase);
+      console.log(`Phase ${i + 1} mapped stories:`, phaseStories.length, 'out of', phase.stories?.length || 0, 'expected');
+      
       const phaseOverview = generatePhaseOverviewPrompt(phase, phaseStories, projectData, platform, i + 1);
       prompts.phaseOverviews.push(phaseOverview);
     }
@@ -159,13 +161,14 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
     const singlePhase = {
       number: 1,
       name: 'Development Phase',
-      description: 'Complete all user stories for this project'
+      description: 'Complete all user stories for this project',
+      stories: userStories.map((story: any) => story.title)
     };
     const phaseOverview = generatePhaseOverviewPrompt(singlePhase, userStories, projectData, platform, 1);
     prompts.phaseOverviews.push(phaseOverview);
   }
 
-  // Generate individual story prompts
+  // Generate individual story prompts for ALL user stories
   for (let i = 0; i < userStories.length; i++) {
     const story = userStories[i];
     const previousStories = userStories.slice(0, i);
@@ -181,6 +184,8 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
     }
   }
 
+  console.log('Generated individual story prompts:', prompts.storyPrompts.length);
+
   // Generate comprehensive troubleshooting guide
   if (openAIApiKey) {
     try {
@@ -194,11 +199,32 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
   return prompts;
 }
 
-function getStoriesForPhase(userStories: any[], phaseNumber: number, totalPhases: number) {
-  const storiesPerPhase = Math.ceil(userStories.length / totalPhases);
-  const startIndex = (phaseNumber - 1) * storiesPerPhase;
-  const endIndex = Math.min(startIndex + storiesPerPhase, userStories.length);
-  return userStories.slice(startIndex, endIndex);
+function getStoriesForPhaseByTitle(userStories: any[], phase: any) {
+  // Map phase story titles to actual user story objects
+  const phaseStoryTitles = phase.stories || [];
+  const mappedStories = [];
+  
+  for (const storyTitle of phaseStoryTitles) {
+    // Find matching user story by title (with fuzzy matching)
+    const matchingStory = userStories.find((story: any) => {
+      // Direct match
+      if (story.title === storyTitle) return true;
+      
+      // Clean and compare (remove extra spaces, case insensitive)
+      const cleanStoryTitle = story.title.toLowerCase().trim();
+      const cleanPhaseTitle = storyTitle.toLowerCase().trim();
+      
+      return cleanStoryTitle === cleanPhaseTitle;
+    });
+    
+    if (matchingStory) {
+      mappedStories.push(matchingStory);
+    } else {
+      console.warn(`Could not find user story for phase title: "${storyTitle}"`);
+    }
+  }
+  
+  return mappedStories;
 }
 
 function generatePhaseOverviewPrompt(phase: any, phaseStories: any[], projectData: any, platform: string, phaseNumber: number) {
@@ -216,7 +242,7 @@ function generatePhaseOverviewPrompt(phase: any, phaseStories: any[], projectDat
 function buildPhaseOverviewContent(phase: any, phaseStories: any[], projectData: any, platform: string, estimatedHours: number): string {
   const storyList = phaseStories.length > 0 
     ? phaseStories.map((story: any, i: number) => `${i + 1}. **${story.title}** - ${story.description || 'Complete this user story'}`).join('\n')
-    : 'No user stories in this phase';
+    : 'No user stories mapped to this phase';
 
   return `
 # PHASE ${phase.number || 1} OVERVIEW: ${phase.name || 'Development Phase'}
@@ -427,7 +453,7 @@ function generateTransitionPrompt(story: any, nextStory: any, platform: string) 
 
 Ready to continue building! 🚀
     `.trim(),
-    executionOrder: (story.execution_order || 0) + 0.5,
+    executionOrder: Math.floor((story.execution_order || 0) * 1000) + 500, // Use integer for transition order
     platform
   };
 }
