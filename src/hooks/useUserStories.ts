@@ -14,6 +14,11 @@ export interface UserStory {
   story_points: number | null;
   created_at: string | null;
   updated_at: string | null;
+  // Add new fields for AI feature generation
+  execution_order: number | null;
+  dependencies: Json | null;
+  estimated_hours: number | null;
+  complexity: string | null;
 }
 
 export interface CreateUserStoryData {
@@ -23,6 +28,10 @@ export interface CreateUserStoryData {
   priority?: string;
   status?: string;
   story_points?: number;
+  execution_order?: number;
+  dependencies?: Json;
+  estimated_hours?: number;
+  complexity?: string;
 }
 
 export const useUserStories = (featureId: string) => {

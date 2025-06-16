@@ -2,6 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Feature } from '@/hooks/useFeatures';
 import type { UserStory } from '@/hooks/useUserStories';
+import type { Json } from '@/integrations/supabase/types';
 
 export interface ExecutionPlan {
   id?: string;
@@ -227,7 +228,7 @@ Focus on creating a clear roadmap that prevents users from getting stuck with AI
           priority: story.priority || 'medium',
           complexity: story.complexity || 'medium',
           estimated_hours: story.estimatedHours || 4,
-          dependencies: story.dependencies || [],
+          dependencies: (story.dependencies || []) as Json,
           status: 'draft'
         });
       }
@@ -261,7 +262,8 @@ Focus on creating a clear roadmap that prevents users from getting stuck with AI
       
       const story = storyMap.get(storyTitle);
       if (story?.dependencies) {
-        for (const dep of story.dependencies as Dependency[]) {
+        const deps = story.dependencies as Dependency[];
+        for (const dep of deps) {
           if (dep.type === 'must_do_first') {
             visit(dep.targetStoryTitle);
           }
@@ -292,6 +294,14 @@ Focus on creating a clear roadmap that prevents users from getting stuck with AI
     const phases = this.groupIntoPhases(order, storyMap);
     const totalHours = userStories.reduce((sum, s) => sum + (s.estimated_hours || 0), 0);
 
+    // Convert phases to Json for database storage
+    const phasesJson = phases.map(phase => ({
+      number: phase.number,
+      name: phase.name,
+      stories: phase.stories,
+      estimatedHours: phase.estimatedHours
+    })) as Json;
+
     // Save execution plan
     const { data: planData, error } = await supabase
       .from('execution_plans')
@@ -299,7 +309,7 @@ Focus on creating a clear roadmap that prevents users from getting stuck with AI
         project_id: projectId,
         total_stories: userStories.length,
         estimated_total_hours: totalHours,
-        phases: phases
+        phases: phasesJson
       })
       .select()
       .single();
@@ -351,5 +361,79 @@ Focus on creating a clear roadmap that prevents users from getting stuck with AI
     }
     
     return phases;
+  }
+
+  private buildFeatureGenerationPrompt(description: string, appType: string): string {
+    return `
+Generate a comprehensive feature plan for this ${appType} project:
+
+PROJECT DESCRIPTION:
+${description}
+
+Return JSON with this EXACT structure:
+{
+  "features": [
+    {
+      "title": "Feature Name",
+      "description": "Clear description of what this feature does",
+      "priority": "high|medium|low",
+      "category": "core|ui|integration|admin",
+      "complexity": "low|medium|high",
+      "estimatedHours": 8
+    }
+  ],
+  "userStories": [
+    {
+      "featureTitle": "Matching feature title",
+      "title": "As a [user type], I can [action] so that [benefit]",
+      "description": "Detailed description of the user story",
+      "acceptanceCriteria": [
+        "Given [context], when [action], then [result]",
+        "Given [context], when [action], then [result]"
+      ],
+      "priority": "high|medium|low",
+      "complexity": "low|medium|high",
+      "estimatedHours": 4,
+      "dependencies": [
+        {
+          "targetStoryTitle": "Title of story this depends on",
+          "type": "must_do_first",
+          "reason": "Clear explanation why this dependency exists"
+        },
+        {
+          "targetStoryTitle": "Title of related story", 
+          "type": "do_together",
+          "reason": "Clear explanation of the relationship"
+        }
+      ]
+    }
+  ]
+}
+
+REQUIREMENTS FOR NON-TECHNICAL USERS:
+- Generate 8-12 main features (not overwhelming)
+- 2-3 user stories per feature (actionable chunks)
+- Use simple, non-technical language
+- Focus on user-facing functionality first
+- Include clear dependencies with simple explanations
+- Prioritize features that provide immediate value
+- Estimate realistic development time (4-8 hours per story)
+
+DEPENDENCY TYPES (keep simple):
+- "must_do_first": This story cannot start until the dependency is complete
+- "do_together": These stories are related and should be coordinated
+
+EXAMPLE DEPENDENCIES:
+- "User Registration" must_do_first before "User Profile"
+- "Product Catalog" must_do_first before "Shopping Cart"
+- "Email Notifications" do_together with "Push Notifications"
+
+STORY COMPLEXITY GUIDELINES:
+- "low": Simple UI changes, basic forms (2-4 hours)
+- "medium": Standard features, integrations (4-8 hours)
+- "high": Complex logic, multiple integrations (8-16 hours)
+
+Focus on creating a clear roadmap that prevents users from getting stuck with AI builders!
+    `.trim();
   }
 }
