@@ -127,7 +127,11 @@ const ProjectDetail = () => {
           parentId: selectedParentNodeId || mindmap.rootNode.id,
           position: { x: Math.random() * 400 - 200, y: Math.random() * 400 - 200 },
           style: { color: '#3b82f6', size: 'medium' },
-          metadata: { priority: newFeature.priority, complexity: newFeature.complexity }
+          metadata: { 
+            priority: newFeature.priority, 
+            complexity: newFeature.complexity,
+            featureId: newFeature.id
+          }
         };
         const conn = { from: selectedParentNodeId || mindmap.rootNode.id, to: nodeId };
         const updated: MindmapStructure & { featureMapping?: Record<string, string> } = {
@@ -563,6 +567,7 @@ const ProjectDetail = () => {
                     <InteractiveMindmapVisualization
                       mindmap={mindmap}
                       mindmapId={mindmapId || undefined}
+                      projectId={id!}
                       onNodeEdit={handleNodeEdit}
                       onNodeDelete={handleNodeDelete}
                       onNodeAdd={handleNodeAdd}
