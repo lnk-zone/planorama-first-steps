@@ -1,4 +1,3 @@
-
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import {
   ReactFlow,
@@ -14,6 +13,7 @@ import {
   NodeTypes,
   ConnectionMode,
   MarkerType,
+  BackgroundVariant,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { ProfessionalRootNode, ProfessionalFeatureNode } from './ProfessionalNodes';
@@ -21,7 +21,7 @@ import { MindmapToolbar } from './MindmapToolbar';
 import { ProfessionalLayoutEngine } from '@/lib/enhancedLayoutEngine';
 import { toast } from '@/hooks/use-toast';
 import { useFeatures } from '@/hooks/useFeatures';
-import { useUserStories } from '@/hooks/useUserStories';
+import { useUserStoriesForFeature } from '@/hooks/useUserStoriesForFeature';
 
 export interface MindmapNode {
   id: string;
@@ -244,7 +244,7 @@ const InteractiveMindmapVisualization: React.FC<InteractiveMindmapVisualizationP
         const featureId = featureMapping[nodeId];
         if (featureId && !newCache[featureId]) {
           try {
-            // This would ideally use the useUserStories hook, but for now we'll simulate
+            // This would ideally use the useUserStoriesForFeature hook, but for now we'll simulate
             newCache[featureId] = []; // Placeholder - in real implementation, fetch user stories
           } catch (error) {
             console.error('Failed to load user stories:', error);
@@ -355,7 +355,7 @@ const InteractiveMindmapVisualization: React.FC<InteractiveMindmapVisualizationP
             color="#f1f5f9" 
             gap={24} 
             size={1}
-            variant="dots"
+            variant={BackgroundVariant.Dots}
           />
           <Controls 
             className="bg-white border border-gray-200 rounded-lg shadow-sm"
