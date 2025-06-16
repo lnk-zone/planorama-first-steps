@@ -34,25 +34,32 @@ export interface CreateUserStoryData {
   complexity?: string;
 }
 
-export const useUserStories = (featureId: string) => {
+export const useUserStories = (featureIds: string | string[]) => {
   const [userStories, setUserStories] = useState<UserStory[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchUserStories = async () => {
+    if (!featureIds || (Array.isArray(featureIds) && featureIds.length === 0)) {
+      setUserStories([]);
+      return;
+    }
+
+    const ids = Array.isArray(featureIds) ? featureIds : [featureIds];
+    
     const { data, error } = await supabase
       .from('user_stories')
       .select('*')
-      .eq('feature_id', featureId)
+      .in('feature_id', ids)
       .order('created_at');
 
     if (error) throw error;
     setUserStories(data || []);
   };
 
-  const addUserStory = async (storyData: CreateUserStoryData) => {
+  const addUserStory = async (storyData: CreateUserStoryData & { feature_id: string }) => {
     const { data, error } = await supabase
       .from('user_stories')
-      .insert([{ ...storyData, feature_id: featureId }])
+      .insert([storyData])
       .select()
       .single();
 
@@ -86,7 +93,7 @@ export const useUserStories = (featureId: string) => {
 
   useEffect(() => {
     fetchUserStories().finally(() => setLoading(false));
-  }, [featureId]);
+  }, [JSON.stringify(featureIds)]);
 
   return {
     userStories,

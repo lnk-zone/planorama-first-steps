@@ -33,6 +33,7 @@ const ProjectDetail: React.FC = () => {
   const [showAddFeatureModal, setShowAddFeatureModal] = useState(false);
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [editingFeature, setEditingFeature] = useState(null);
 
   const project = projects.find(p => p.id === id);
 
@@ -92,6 +93,35 @@ const ProjectDetail: React.FC = () => {
   const handleCloseAIModal = () => {
     setShowAIFeatureModal(false);
     setIsRegenerating(false);
+  };
+
+  const handleFeatureSelect = (feature: any) => {
+    console.log('Feature selected:', feature);
+  };
+
+  const handleAddChild = (parentFeature: any) => {
+    console.log('Add child to:', parentFeature);
+  };
+
+  const handleEdit = (feature: any) => {
+    setEditingFeature(feature);
+    setShowAddFeatureModal(true);
+  };
+
+  const handleDelete = (featureId: string) => {
+    console.log('Delete feature:', featureId);
+  };
+
+  const handleSaveFeature = async (featureData: any) => {
+    // Handle feature save logic
+    await refetchFeatures();
+    setShowAddFeatureModal(false);
+    setEditingFeature(null);
+  };
+
+  const handleProjectUpdate = async () => {
+    // Refresh project data if needed
+    setShowEditProjectModal(false);
   };
 
   const hasFeatures = features.length > 0;
@@ -220,17 +250,20 @@ const ProjectDetail: React.FC = () => {
 
           <TabsContent value="features" className="space-y-4">
             <EnhancedFeatureHierarchy 
-              projectId={project.id}
-              onFeatureUpdated={refetchFeatures}
+              features={features}
+              onFeatureSelect={handleFeatureSelect}
+              onAddChild={handleAddChild}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
             />
           </TabsContent>
 
           <TabsContent value="execution" className="space-y-4">
-            <ExecutionOrderDisplay projectId={project.id} />
+            <ExecutionOrderDisplay />
           </TabsContent>
 
           <TabsContent value="metrics" className="space-y-4">
-            <ProjectMetrics projectId={project.id} />
+            <ProjectMetrics projects={[project]} />
           </TabsContent>
         </Tabs>
       ) : (
@@ -283,14 +316,18 @@ const ProjectDetail: React.FC = () => {
 
       <AddEditFeatureModal
         isOpen={showAddFeatureModal}
-        onClose={() => setShowAddFeatureModal(false)}
-        projectId={project.id}
-        onFeatureAdded={refetchFeatures}
+        onClose={() => {
+          setShowAddFeatureModal(false);
+          setEditingFeature(null);
+        }}
+        feature={editingFeature}
+        onSave={handleSaveFeature}
       />
 
       <EditProjectModal
         isOpen={showEditProjectModal}
         onClose={() => setShowEditProjectModal(false)}
+        onSuccess={handleProjectUpdate}
         project={project}
       />
     </div>
