@@ -546,28 +546,30 @@ const ProjectDetail = () => {
           </TabsContent>
 
           <TabsContent value="mindmap" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Project Mindmap</CardTitle>
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-xl">Project Mindmap</CardTitle>
                 <CardDescription>
                   Interactive mindmap for visualizing and organizing your app features and user flows.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-0">
                 {mindmapLoading ? (
                   <div className="flex items-center justify-center py-12">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
                   </div>
                 ) : mindmap ? (
-                  <InteractiveMindmapVisualization
-                    mindmap={mindmap}
-                    mindmapId={mindmapId || undefined}
-                    onNodeEdit={handleNodeEdit}
-                    onNodeDelete={handleNodeDelete}
-                    onNodeAdd={handleNodeAdd}
-                  />
+                  <div className="h-[700px] w-full">
+                    <InteractiveMindmapVisualization
+                      mindmap={mindmap}
+                      mindmapId={mindmapId || undefined}
+                      onNodeEdit={handleNodeEdit}
+                      onNodeDelete={handleNodeDelete}
+                      onNodeAdd={handleNodeAdd}
+                    />
+                  </div>
                 ) : (
-                  <div className="border-2 border-dashed border-gray-200 rounded-lg p-12 text-center">
+                  <div className="border-2 border-dashed border-gray-200 rounded-lg p-12 text-center m-6">
                     <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">
                       AI-Powered Mindmap Generation
