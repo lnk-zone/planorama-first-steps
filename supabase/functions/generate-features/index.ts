@@ -18,7 +18,7 @@ Generate a comprehensive feature plan for this ${appType} project:
 PROJECT DESCRIPTION:
 ${description}
 
-Return JSON with this EXACT structure:
+Return ONLY valid JSON with this EXACT structure (no markdown, no code blocks):
 {
   "features": [
     {
@@ -128,47 +128,85 @@ EXAMPLE DEPENDENCY STRUCTURE:
 - Basic Communication → Advanced Notifications → Integration Features
 
 Remember: This is for non-technical users building with AI tools. They need a complete roadmap that won't leave them stuck because they forgot essential features like authentication!
+
+IMPORTANT: Return ONLY the JSON object. Do not wrap it in markdown code blocks or add any extra text.
   `.trim();
 };
 
-const validateResponse = (parsedContent: any): boolean => {
+const cleanJsonResponse = (content: string): string => {
+  console.log('Raw AI response length:', content.length);
+  console.log('Raw AI response (first 200 chars):', content.substring(0, 200));
+  
+  // Remove markdown code blocks if present
+  let cleaned = content.trim();
+  
+  // Remove ```json and ``` markers
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.replace(/^```json\s*/, '');
+  }
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```\s*/, '');
+  }
+  if (cleaned.endsWith('```')) {
+    cleaned = cleaned.replace(/\s*```$/, '');
+  }
+  
+  // Find the first { and last } to extract just the JSON
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+  
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+  }
+  
+  console.log('Cleaned response length:', cleaned.length);
+  console.log('Cleaned response (first 200 chars):', cleaned.substring(0, 200));
+  
+  return cleaned;
+};
+
+const validateResponse = (parsedContent: any): { isValid: boolean; error?: string } => {
   // Check basic structure
-  if (!parsedContent.features || !parsedContent.userStories) {
-    console.error('Missing features or userStories in response');
-    return false;
+  if (!parsedContent || typeof parsedContent !== 'object') {
+    return { isValid: false, error: 'Response is not a valid object' };
+  }
+  
+  if (!parsedContent.features || !Array.isArray(parsedContent.features)) {
+    return { isValid: false, error: 'Missing or invalid features array' };
+  }
+  
+  if (!parsedContent.userStories || !Array.isArray(parsedContent.userStories)) {
+    return { isValid: false, error: 'Missing or invalid userStories array' };
   }
 
   // Check for authentication features
   const authFeatures = parsedContent.features.filter((f: any) => 
     f.category === 'auth' || 
-    f.title.toLowerCase().includes('auth') ||
-    f.title.toLowerCase().includes('login') ||
-    f.title.toLowerCase().includes('register') ||
-    f.title.toLowerCase().includes('user')
+    (f.title && f.title.toLowerCase().includes('auth')) ||
+    (f.title && f.title.toLowerCase().includes('login')) ||
+    (f.title && f.title.toLowerCase().includes('register')) ||
+    (f.title && f.title.toLowerCase().includes('user'))
   );
 
   if (authFeatures.length < 3) {
-    console.error('Insufficient authentication features found');
-    return false;
+    console.warn('Few authentication features detected, but proceeding...');
   }
 
   // Check for proper dependencies
   const storiesWithDependencies = parsedContent.userStories.filter(
-    (story: any) => story.dependencies && story.dependencies.length > 0
+    (story: any) => story.dependencies && Array.isArray(story.dependencies) && story.dependencies.length > 0
   );
 
-  if (storiesWithDependencies.length < parsedContent.userStories.length * 0.6) {
-    console.error('Too few stories have dependencies');
-    return false;
+  if (storiesWithDependencies.length < parsedContent.userStories.length * 0.4) {
+    console.warn('Few stories have dependencies, but proceeding...');
   }
 
   // Check minimum feature count
-  if (parsedContent.features.length < 10) {
-    console.error('Not enough features generated');
-    return false;
+  if (parsedContent.features.length < 8) {
+    return { isValid: false, error: 'Not enough features generated (minimum 8 required)' };
   }
 
-  return true;
+  return { isValid: true };
 };
 
 const handler = async (req: Request): Promise<Response> => {
@@ -182,10 +220,13 @@ const handler = async (req: Request): Promise<Response> => {
 
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openaiApiKey) {
+      console.error('OpenAI API key not configured');
       throw new Error('OpenAI API key not configured');
     }
 
     console.log('Generating comprehensive features with enhanced prompt...');
+    console.log('Description length:', description.length);
+    console.log('App type:', appType);
 
     const prompt = buildFeatureGenerationPrompt(description, appType);
 
@@ -210,6 +251,7 @@ CRITICAL INSTRUCTIONS:
 - Focus on creating a complete roadmap that prevents users from getting stuck
 - Use detailed acceptance criteria (3-5 per story)
 - Provide realistic time estimates based on complexity
+- Return ONLY valid JSON, no markdown formatting or code blocks
 
 You must generate a complete app plan, not just the business features described.`
           },
@@ -225,30 +267,44 @@ You must generate a complete app plan, not just the business features described.
 
     if (!response.ok) {
       const errorData = await response.text();
-      console.error('OpenAI API error:', errorData);
-      throw new Error(`OpenAI API error: ${response.status}`);
+      console.error('OpenAI API error:', response.status, errorData);
+      throw new Error(`OpenAI API error: ${response.status} - ${errorData}`);
     }
 
     const aiResponse = await response.json();
-    console.log('OpenAI response received');
+    console.log('OpenAI response received successfully');
+
+    if (!aiResponse.choices || !aiResponse.choices[0] || !aiResponse.choices[0].message) {
+      console.error('Invalid OpenAI response structure:', aiResponse);
+      throw new Error('Invalid response structure from OpenAI');
+    }
 
     const content = aiResponse.choices[0].message.content;
+    if (!content || content.trim().length === 0) {
+      console.error('Empty content from OpenAI');
+      throw new Error('Empty response from OpenAI');
+    }
+
+    // Clean and parse the JSON response
+    const cleanedContent = cleanJsonResponse(content);
     let parsedContent;
     
     try {
-      parsedContent = JSON.parse(content);
+      parsedContent = JSON.parse(cleanedContent);
     } catch (parseError) {
-      console.error('Failed to parse AI response:', parseError);
-      throw new Error('Invalid JSON response from AI');
+      console.error('Failed to parse cleaned AI response:', parseError);
+      console.error('Cleaned content that failed to parse:', cleanedContent.substring(0, 500));
+      throw new Error(`Invalid JSON response from AI: ${parseError.message}`);
     }
 
     // Validate the response
-    if (!validateResponse(parsedContent)) {
-      console.error('Response validation failed, regenerating...');
-      throw new Error('AI response did not meet quality requirements');
+    const validation = validateResponse(parsedContent);
+    if (!validation.isValid) {
+      console.error('Response validation failed:', validation.error);
+      throw new Error(`AI response validation failed: ${validation.error}`);
     }
 
-    console.log(`Generated ${parsedContent.features.length} features and ${parsedContent.userStories.length} user stories`);
+    console.log(`Successfully generated ${parsedContent.features.length} features and ${parsedContent.userStories.length} user stories`);
     
     const storiesWithDependencies = parsedContent.userStories.filter(
       (story: any) => story.dependencies && story.dependencies.length > 0
@@ -264,13 +320,32 @@ You must generate a complete app plan, not just the business features described.
     });
   } catch (error: any) {
     console.error('Error in generate-features function:', error);
+    
+    let errorMessage = 'Failed to generate features';
+    let statusCode = 500;
+    
+    if (error.message?.includes('OpenAI API key not configured')) {
+      errorMessage = 'OpenAI API key not configured';
+      statusCode = 500;
+    } else if (error.message?.includes('OpenAI API error')) {
+      errorMessage = 'OpenAI service error';
+      statusCode = 502;
+    } else if (error.message?.includes('Invalid JSON')) {
+      errorMessage = 'AI response format error';
+      statusCode = 502;
+    } else if (error.message?.includes('validation failed')) {
+      errorMessage = 'AI response quality error';
+      statusCode = 502;
+    }
+    
     return new Response(
       JSON.stringify({ 
-        error: error.message || 'Failed to generate features',
-        details: 'Please try again or provide more detailed project description.'
+        error: errorMessage,
+        details: error.message || 'Unknown error occurred',
+        timestamp: new Date().toISOString()
       }),
       {
-        status: 500,
+        status: statusCode,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       }
     );

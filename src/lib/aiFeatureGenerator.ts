@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { Feature } from '@/hooks/useFeatures';
 import type { UserStory } from '@/hooks/useUserStories';
@@ -49,73 +48,118 @@ export class AIFeatureGenerator {
     projectDescription: string,
     appType: string = 'web_app'
   ): Promise<GenerationResult> {
-    try {
-      this.updateProgress('analyzing', 10, 'Analyzing project requirements...');
+    const maxRetries = 2;
+    let lastError: Error | null = null;
 
-      this.updateProgress('generating_features', 30, 'Generating comprehensive features with AI...');
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        this.updateProgress('analyzing', 10, 'Analyzing project requirements...');
 
-      console.log('Calling enhanced feature generation service...');
-      
-      const { data: aiResponse, error } = await supabase.functions.invoke('generate-features', {
-        body: { 
-          description: projectDescription,
-          appType: appType
+        this.updateProgress('generating_features', 30, `Generating comprehensive features with AI... (Attempt ${attempt}/${maxRetries})`);
+
+        console.log(`Calling enhanced feature generation service (attempt ${attempt}/${maxRetries})...`);
+        
+        const { data: aiResponse, error } = await supabase.functions.invoke('generate-features', {
+          body: { 
+            description: projectDescription,
+            appType: appType
+          }
+        });
+
+        if (error) {
+          console.error(`Supabase function error (attempt ${attempt}):`, error);
+          
+          // Create a more specific error message based on the error
+          let errorMessage = 'AI generation failed';
+          if (error.message?.includes('OpenAI API key')) {
+            errorMessage = 'OpenAI API key not configured. Please contact support.';
+          } else if (error.message?.includes('API error')) {
+            errorMessage = 'OpenAI service is temporarily unavailable. Please try again.';
+          } else if (error.message?.includes('format error') || error.message?.includes('JSON')) {
+            errorMessage = 'AI response format error. Please try with a simpler description.';
+          } else if (error.message?.includes('quality error') || error.message?.includes('validation')) {
+            errorMessage = 'AI response quality issue. Please try refining your description.';
+          }
+          
+          lastError = new Error(`${errorMessage}: ${error.message || 'Unknown error'}`);
+          
+          if (attempt === maxRetries) {
+            throw lastError;
+          }
+          
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+          continue;
         }
-      });
 
-      if (error) {
-        console.error('Supabase function error:', error);
-        throw new Error(`AI generation failed: ${error.message || 'Unknown error from AI service'}`);
-      }
-
-      if (!aiResponse || !aiResponse.features || !aiResponse.userStories) {
-        console.error('Invalid AI response structure:', aiResponse);
-        throw new Error('Invalid response structure from AI service');
-      }
-
-      console.log(`AI Response: ${aiResponse.features.length} features, ${aiResponse.userStories.length} user stories`);
-      
-      // Validate we have authentication features
-      const authFeatures = aiResponse.features.filter((f: any) => 
-        f.category === 'auth' || 
-        f.title.toLowerCase().includes('auth') ||
-        f.title.toLowerCase().includes('login') ||
-        f.title.toLowerCase().includes('register')
-      );
-      
-      if (authFeatures.length < 3) {
-        console.warn('Few authentication features detected, but proceeding...');
-      }
-      
-      this.updateProgress('creating_stories', 60, 'Creating features and user stories...');
-
-      const features = await this.createFeaturesWithOrder(projectId, aiResponse.features);
-      const userStories = await this.createUserStoriesWithDependencies(features, aiResponse.userStories);
-      
-      this.updateProgress('calculating_order', 80, 'Calculating execution order and phases...');
-      
-      const executionPlan = await this.calculateExecutionOrder(projectId, userStories);
-      
-      this.updateProgress('complete', 100, 'Feature generation complete!');
-
-      return { features, userStories, executionPlan };
-    } catch (error) {
-      console.error('AI feature generation failed:', error);
-      
-      let errorMessage = 'Failed to generate features. Please try again.';
-      
-      if (error instanceof Error) {
-        if (error.message.includes('AI generation failed')) {
-          errorMessage = 'AI service encountered an error. Please check your description and try again.';
-        } else if (error.message.includes('No response')) {
-          errorMessage = 'AI service is not responding. Please try again in a moment.';
-        } else if (error.message.includes('Invalid response')) {
-          errorMessage = 'AI service returned invalid data. Please try simplifying your description.';
+        if (!aiResponse || !aiResponse.features || !aiResponse.userStories) {
+          console.error(`Invalid AI response structure (attempt ${attempt}):`, aiResponse);
+          lastError = new Error('Invalid response structure from AI service');
+          
+          if (attempt === maxRetries) {
+            throw lastError;
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+          continue;
         }
+
+        console.log(`AI Response (attempt ${attempt}): ${aiResponse.features.length} features, ${aiResponse.userStories.length} user stories`);
+        
+        // Validate we have authentication features
+        const authFeatures = aiResponse.features.filter((f: any) => 
+          f.category === 'auth' || 
+          f.title.toLowerCase().includes('auth') ||
+          f.title.toLowerCase().includes('login') ||
+          f.title.toLowerCase().includes('register')
+        );
+        
+        if (authFeatures.length < 3) {
+          console.warn('Few authentication features detected, but proceeding...');
+        }
+        
+        this.updateProgress('creating_stories', 60, 'Creating features and user stories...');
+
+        const features = await this.createFeaturesWithOrder(projectId, aiResponse.features);
+        const userStories = await this.createUserStoriesWithDependencies(features, aiResponse.userStories);
+        
+        this.updateProgress('calculating_order', 80, 'Calculating execution order and phases...');
+        
+        const executionPlan = await this.calculateExecutionOrder(projectId, userStories);
+        
+        this.updateProgress('complete', 100, 'Feature generation complete!');
+
+        return { features, userStories, executionPlan };
+
+      } catch (error) {
+        console.error(`AI feature generation failed (attempt ${attempt}):`, error);
+        lastError = error instanceof Error ? error : new Error('Unknown error');
+        
+        if (attempt === maxRetries) {
+          break;
+        }
+        
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
       }
-      
-      throw new Error(errorMessage);
     }
+
+    // If we get here, all retries failed
+    let errorMessage = 'Failed to generate features after multiple attempts. Please try again.';
+    
+    if (lastError) {
+      if (lastError.message.includes('OpenAI API key')) {
+        errorMessage = 'OpenAI API key is not configured. Please contact support.';
+      } else if (lastError.message.includes('OpenAI service') || lastError.message.includes('API error')) {
+        errorMessage = 'OpenAI service is temporarily unavailable. Please try again in a moment.';
+      } else if (lastError.message.includes('format error') || lastError.message.includes('Invalid JSON')) {
+        errorMessage = 'AI service returned invalid data. Please try simplifying your description.';
+      } else if (lastError.message.includes('quality') || lastError.message.includes('validation')) {
+        errorMessage = 'AI service had trouble understanding your request. Please try rephrasing your description.';
+      }
+    }
+    
+    throw new Error(errorMessage);
   }
 
   private updateProgress(stage: GenerationProgressData['stage'], progress: number, currentAction: string) {
