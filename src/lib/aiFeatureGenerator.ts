@@ -50,13 +50,12 @@ export class AIFeatureGenerator {
     appType: string = 'web_app'
   ): Promise<GenerationResult> {
     try {
-      this.updateProgress('analyzing', 10, 'Analyzing project description...');
+      this.updateProgress('analyzing', 10, 'Analyzing project requirements...');
 
-      this.updateProgress('generating_features', 30, 'Generating features and stories with AI...');
+      this.updateProgress('generating_features', 30, 'Generating comprehensive features with AI...');
 
-      console.log('Calling Supabase function for feature generation...');
+      console.log('Calling enhanced feature generation service...');
       
-      // Pass structured data instead of pre-built prompt
       const { data: aiResponse, error } = await supabase.functions.invoke('generate-features', {
         body: { 
           description: projectDescription,
@@ -74,19 +73,27 @@ export class AIFeatureGenerator {
         throw new Error('Invalid response structure from AI service');
       }
 
-      console.log('AI Response received:', aiResponse);
+      console.log(`AI Response: ${aiResponse.features.length} features, ${aiResponse.userStories.length} user stories`);
+      
+      // Validate we have authentication features
+      const authFeatures = aiResponse.features.filter((f: any) => 
+        f.category === 'auth' || 
+        f.title.toLowerCase().includes('auth') ||
+        f.title.toLowerCase().includes('login') ||
+        f.title.toLowerCase().includes('register')
+      );
+      
+      if (authFeatures.length < 3) {
+        console.warn('Few authentication features detected, but proceeding...');
+      }
       
       this.updateProgress('creating_stories', 60, 'Creating features and user stories...');
 
-      // 1. Create features with execution order
       const features = await this.createFeaturesWithOrder(projectId, aiResponse.features);
-      
-      // 2. Create user stories with dependencies
       const userStories = await this.createUserStoriesWithDependencies(features, aiResponse.userStories);
       
-      this.updateProgress('calculating_order', 80, 'Calculating execution order...');
+      this.updateProgress('calculating_order', 80, 'Calculating execution order and phases...');
       
-      // 3. Calculate and update execution order
       const executionPlan = await this.calculateExecutionOrder(projectId, userStories);
       
       this.updateProgress('complete', 100, 'Feature generation complete!');
@@ -118,7 +125,22 @@ export class AIFeatureGenerator {
   }
 
   private async createFeaturesWithOrder(projectId: string, aiFeatures: any[]): Promise<Feature[]> {
-    const features = aiFeatures.map((f, index) => ({
+    // Sort features to put authentication features first
+    const sortedFeatures = aiFeatures.sort((a, b) => {
+      const aIsAuth = a.category === 'auth' || a.title.toLowerCase().includes('auth') || 
+                     a.title.toLowerCase().includes('login') || a.title.toLowerCase().includes('register');
+      const bIsAuth = b.category === 'auth' || b.title.toLowerCase().includes('auth') || 
+                     b.title.toLowerCase().includes('login') || b.title.toLowerCase().includes('register');
+      
+      if (aIsAuth && !bIsAuth) return -1;
+      if (!aIsAuth && bIsAuth) return 1;
+      
+      // Then sort by priority
+      const priorityOrder = { high: 0, medium: 1, low: 2 };
+      return priorityOrder[a.priority as keyof typeof priorityOrder] - priorityOrder[b.priority as keyof typeof priorityOrder];
+    });
+
+    const features = sortedFeatures.map((f, index) => ({
       project_id: projectId,
       title: f.title,
       description: f.description,
@@ -129,7 +151,8 @@ export class AIFeatureGenerator {
       execution_order: index + 1,
       metadata: {
         generated_by_ai: true,
-        generation_timestamp: new Date().toISOString()
+        generation_timestamp: new Date().toISOString(),
+        enhanced_generation: true
       }
     }));
 
@@ -148,15 +171,23 @@ export class AIFeatureGenerator {
     for (const story of aiUserStories) {
       const matchingFeature = features.find(f => f.title === story.featureTitle);
       if (matchingFeature) {
+        // Ensure dependencies are properly structured
+        let dependencies = story.dependencies || [];
+        
+        // Validate and fix dependency structure
+        dependencies = dependencies.filter((dep: any) => 
+          dep && dep.targetStoryTitle && dep.type && dep.reason
+        );
+
         userStories.push({
           feature_id: matchingFeature.id,
           title: story.title,
           description: story.description,
-          acceptance_criteria: story.acceptanceCriteria,
+          acceptance_criteria: story.acceptanceCriteria || [],
           priority: story.priority || 'medium',
           complexity: story.complexity || 'medium',
           estimated_hours: story.estimatedHours || 4,
-          dependencies: (story.dependencies || []) as Json,
+          dependencies: dependencies as Json,
           status: 'draft'
         });
       }
@@ -174,7 +205,6 @@ export class AIFeatureGenerator {
   }
 
   private async calculateExecutionOrder(projectId: string, userStories: UserStory[]): Promise<ExecutionPlan> {
-    // Simple topological sort based on dependencies
     const storyMap = new Map(userStories.map(s => [s.title, s]));
     const visited = new Set<string>();
     const visiting = new Set<string>();
@@ -182,7 +212,8 @@ export class AIFeatureGenerator {
 
     const visit = (storyTitle: string) => {
       if (visiting.has(storyTitle)) {
-        throw new Error(`Circular dependency detected involving: ${storyTitle}`);
+        console.warn(`Circular dependency detected involving: ${storyTitle}, skipping...`);
+        return;
       }
       if (visited.has(storyTitle)) return;
 
@@ -190,11 +221,17 @@ export class AIFeatureGenerator {
       
       const story = storyMap.get(storyTitle);
       if (story?.dependencies) {
-        const deps = story.dependencies as unknown as Dependency[];
-        for (const dep of deps) {
-          if (dep.type === 'must_do_first') {
-            visit(dep.targetStoryTitle);
+        try {
+          const deps = story.dependencies as unknown as Dependency[];
+          for (const dep of deps) {
+            if (dep && dep.type === 'must_do_first' && dep.targetStoryTitle) {
+              if (storyMap.has(dep.targetStoryTitle)) {
+                visit(dep.targetStoryTitle);
+              }
+            }
           }
+        } catch (e) {
+          console.warn(`Error processing dependencies for ${storyTitle}:`, e);
         }
       }
       
@@ -222,7 +259,6 @@ export class AIFeatureGenerator {
     const phases = this.groupIntoPhases(order, storyMap);
     const totalHours = userStories.reduce((sum, s) => sum + (s.estimated_hours || 0), 0);
 
-    // Convert phases to Json for database storage
     const phasesJson = phases.map(phase => ({
       number: phase.number,
       name: phase.name,
@@ -230,7 +266,6 @@ export class AIFeatureGenerator {
       estimatedHours: phase.estimatedHours
     })) as Json;
 
-    // Save execution plan
     const { data: planData, error } = await supabase
       .from('execution_plans')
       .insert({
@@ -257,21 +292,43 @@ export class AIFeatureGenerator {
     const phases: Phase[] = [];
     let currentPhase: string[] = [];
     let phaseHours = 0;
+    let phaseNumber = 1;
+    
+    // Create meaningful phase names based on content
+    const getPhaseNameForStories = (stories: string[], phaseNum: number): string => {
+      const authStories = stories.filter(title => 
+        title.toLowerCase().includes('register') ||
+        title.toLowerCase().includes('login') ||
+        title.toLowerCase().includes('auth') ||
+        title.toLowerCase().includes('password')
+      );
+      
+      if (authStories.length > stories.length * 0.6) {
+        return 'Phase 1: Authentication & User Management';
+      } else if (phaseNum === 2) {
+        return 'Phase 2: Core Features';
+      } else if (phaseNum === 3) {
+        return 'Phase 3: Advanced Features';
+      } else {
+        return `Phase ${phaseNum}: Additional Features`;
+      }
+    };
     
     for (const storyTitle of order) {
       const story = storyMap.get(storyTitle);
       if (!story) continue;
       
-      // Start new phase if current phase is getting too big (40+ hours)
-      if (phaseHours > 40 && currentPhase.length > 0) {
+      // Start new phase if current phase is getting too big (30+ hours) or we have too many stories
+      if ((phaseHours > 30 && currentPhase.length > 0) || currentPhase.length >= 8) {
         phases.push({
-          number: phases.length + 1,
-          name: `Phase ${phases.length + 1}`,
+          number: phaseNumber,
+          name: getPhaseNameForStories(currentPhase, phaseNumber),
           stories: [...currentPhase],
           estimatedHours: phaseHours
         });
         currentPhase = [];
         phaseHours = 0;
+        phaseNumber++;
       }
       
       currentPhase.push(storyTitle);
@@ -281,8 +338,8 @@ export class AIFeatureGenerator {
     // Add final phase
     if (currentPhase.length > 0) {
       phases.push({
-        number: phases.length + 1,
-        name: `Phase ${phases.length + 1}`,
+        number: phaseNumber,
+        name: getPhaseNameForStories(currentPhase, phaseNumber),
         stories: currentPhase,
         estimatedHours: phaseHours
       });
