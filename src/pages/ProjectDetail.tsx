@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -33,7 +32,7 @@ const ProjectDetail: React.FC = () => {
   const [showAIFeatureModal, setShowAIFeatureModal] = useState(false);
   const [showFeatureGenerationModal, setShowFeatureGenerationModal] = useState(false);
   const [showAddFeatureModal, setShowAddFeatureModal] = useState(false);
-  const [showEditProject Modal, setShowEditProjectModal] = useState(false);
+  const [showEditProjectModal, setShowEditProjectModal] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [editingFeature, setEditingFeature] = useState(null);
 
