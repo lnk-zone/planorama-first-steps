@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ArrowLeft, Settings, Share2, Download, Zap, FileText, Users, Activity, Layers, Plus, RefreshCw } from 'lucide-react';
-import MindmapVisualization, { MindmapStructure, MindmapNode } from '@/components/mindmap/MindmapVisualization';
+import InteractiveMindmapVisualization, { MindmapStructure, MindmapNode } from '@/components/mindmap/InteractiveMindmapVisualization';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useFeatures } from '@/hooks/useFeatures';
@@ -221,6 +221,41 @@ const ProjectDetail = () => {
       updated.nodes = mindmap.nodes.map(n => n.id === nodeId ? apply(n) : n);
     }
     await syncMindmap(updated);
+  };
+
+  const handleNodeEdit = (nodeId: string) => {
+    if (nodeId === 'root') {
+      // Handle root node edit - could open project settings
+      toast({
+        title: "Edit Project",
+        description: "Project editing coming soon.",
+      });
+      return;
+    }
+
+    // Find the corresponding feature for this node
+    const mapping: Record<string, string> = (mindmap as any)?.featureMapping || {};
+    const featureId = mapping[nodeId];
+    if (featureId) {
+      const feature = features.find(f => f.id === featureId);
+      if (feature) {
+        setEditingFeature(feature);
+      }
+    }
+  };
+
+  const handleNodeDelete = (nodeId: string) => {
+    // Find the corresponding feature and delete it
+    const mapping: Record<string, string> = (mindmap as any)?.featureMapping || {};
+    const featureId = mapping[nodeId];
+    if (featureId) {
+      handleDeleteFeature(featureId);
+    }
+  };
+
+  const handleNodeAdd = (parentId: string) => {
+    setSelectedParentNodeId(parentId);
+    setIsAddModalOpen(true);
   };
 
   const handleNodeClick = (node: MindmapNode) => {
@@ -515,7 +550,7 @@ const ProjectDetail = () => {
               <CardHeader>
                 <CardTitle>Project Mindmap</CardTitle>
                 <CardDescription>
-                  Visualize your app features and user flows. Create an interactive mindmap to plan your project.
+                  Interactive mindmap for visualizing and organizing your app features and user flows.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -524,7 +559,13 @@ const ProjectDetail = () => {
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
                   </div>
                 ) : mindmap ? (
-                  <MindmapVisualization mindmap={mindmap} mindmapId={mindmapId || undefined} onNodeClick={handleNodeClick} width={800} height={600} />
+                  <InteractiveMindmapVisualization
+                    mindmap={mindmap}
+                    mindmapId={mindmapId || undefined}
+                    onNodeEdit={handleNodeEdit}
+                    onNodeDelete={handleNodeDelete}
+                    onNodeAdd={handleNodeAdd}
+                  />
                 ) : (
                   <div className="border-2 border-dashed border-gray-200 rounded-lg p-12 text-center">
                     <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
