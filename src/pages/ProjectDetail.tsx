@@ -128,6 +128,31 @@ const ProjectDetail: React.FC = () => {
   const totalStories = userStories.length;
   const completedStories = userStories.filter(s => s.status === 'completed').length;
 
+  // Create a mock execution plan for now - this would come from the AI generation later
+  const mockExecutionPlan = {
+    totalStories: totalStories,
+    executionOrder: userStories
+      .sort((a, b) => (a.execution_order || 0) - (b.execution_order || 0))
+      .map(story => story.title),
+    estimatedTotalHours: userStories.reduce((sum, story) => sum + (story.estimated_hours || 0), 0),
+    phases: [
+      {
+        number: 1,
+        name: "Phase 1: Foundation",
+        stories: userStories.slice(0, Math.ceil(userStories.length / 2)).map(s => s.title),
+        estimatedHours: userStories.slice(0, Math.ceil(userStories.length / 2))
+          .reduce((sum, story) => sum + (story.estimated_hours || 0), 0)
+      },
+      {
+        number: 2,
+        name: "Phase 2: Implementation",
+        stories: userStories.slice(Math.ceil(userStories.length / 2)).map(s => s.title),
+        estimatedHours: userStories.slice(Math.ceil(userStories.length / 2))
+          .reduce((sum, story) => sum + (story.estimated_hours || 0), 0)
+      }
+    ]
+  };
+
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
       {/* Header */}
@@ -259,7 +284,10 @@ const ProjectDetail: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="execution" className="space-y-4">
-            <ExecutionOrderDisplay />
+            <ExecutionOrderDisplay 
+              userStories={userStories}
+              executionPlan={mockExecutionPlan}
+            />
           </TabsContent>
 
           <TabsContent value="metrics" className="space-y-4">
