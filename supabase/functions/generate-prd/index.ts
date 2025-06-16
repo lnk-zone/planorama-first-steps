@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
@@ -36,7 +35,9 @@ Key principles:
 - Leverage all available project data for contextual insights
 - Create logical development phases based on dependencies
 - Include risk assessment and mitigation strategies
-- Provide success metrics and KPIs based on project goals`;
+- Provide success metrics and KPIs based on project goals
+
+CRITICAL: Generate ONLY the PRD content. Do not include any meta-instructions or formatting requirements as content in the document.`;
 
     const userPrompt = buildEnhancedPRDPrompt(projectData, template);
 
@@ -146,7 +147,7 @@ ${relatedStories.map((story: any, storyIndex: number) => `
 ## EXECUTION PHASES ANALYSIS
 ${phaseAnalysis}
 
-Create a detailed PRD with the following structure and requirements:
+Create a detailed PRD with the following structure:
 
 # [Project Title] - Product Requirements Document
 
@@ -250,7 +251,9 @@ ${template === 'ai_builder' ? `
 - **Performance Bottlenecks:** Profile and optimize database queries first
 ` : ''}
 
-## FORMATTING REQUIREMENTS:
+---
+
+GENERATION INSTRUCTIONS (DO NOT INCLUDE IN OUTPUT):
 - Use professional, clear language suitable for technical and business stakeholders
 - Include specific, actionable requirements with measurable outcomes
 - Organize content by execution order and logical dependencies
@@ -261,8 +264,8 @@ ${template === 'ai_builder' ? `
 - Include detailed technical specifications
 - Provide business context and market analysis
 - Ensure all time estimates reflect AI builder capabilities (not traditional development)
-
-Generate a PRD that matches the depth, structure, and professionalism of enterprise-level documentation while being optimized for AI-assisted development workflows.`;
+- Generate a PRD that matches the depth, structure, and professionalism of enterprise-level documentation while being optimized for AI-assisted development workflows
+- DO NOT include these instructions or any meta-content in the generated PRD`;
 }
 
 function analyzeProjectContext(project: any, features: any[], userStories: any[]): string {
