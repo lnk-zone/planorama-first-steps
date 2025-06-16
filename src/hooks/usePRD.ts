@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { PRDGenerator, type PRDDocument } from '@/lib/prdGenerator';
 import { toast } from 'sonner';
@@ -41,7 +40,7 @@ export const usePRD = (projectId: string) => {
     }
   };
 
-  const exportPRD = async (format: 'markdown' | 'html' | 'text') => {
+  const exportPRD = async (format: 'markdown' | 'html' | 'text' | 'pdf') => {
     if (!prd) return;
     
     setIsExporting(true);
@@ -49,7 +48,9 @@ export const usePRD = (projectId: string) => {
       const exportResult = await prdGenerator.exportPRD(prd.id, format);
       
       // Create download
-      const blob = new Blob([exportResult.data], { type: exportResult.mimeType });
+      const blob = exportResult.data instanceof Blob 
+        ? exportResult.data 
+        : new Blob([exportResult.data], { type: exportResult.mimeType });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

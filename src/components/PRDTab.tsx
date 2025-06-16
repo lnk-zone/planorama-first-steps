@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,7 +27,7 @@ const PRDTab: React.FC<PRDTabProps> = ({ projectTitle, projectDescription }) => 
     }
   };
 
-  const handleExport = async (format: 'markdown' | 'html' | 'text') => {
+  const handleExport = async (format: 'markdown' | 'html' | 'text' | 'pdf') => {
     try {
       await exportPRD(format);
     } catch (error) {
@@ -193,6 +192,14 @@ const PRDTab: React.FC<PRDTabProps> = ({ projectTitle, projectDescription }) => 
           >
             <Download className="h-4 w-4 mr-2" />
             HTML
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => handleExport('pdf')}
+            disabled={isExporting}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            PDF
           </Button>
           <Button
             onClick={handleGeneratePRD}

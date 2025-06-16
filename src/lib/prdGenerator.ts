@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import jsPDF from 'jspdf';
 
 export interface PRDDocument {
   id: string;
@@ -335,7 +336,7 @@ export class PRDGenerator {
     };
   }
 
-  async exportPRD(prdId: string, format: 'markdown' | 'html' | 'text'): Promise<ExportResult> {
+  async exportPRD(prdId: string, format: 'markdown' | 'html' | 'text' | 'pdf'): Promise<ExportResult> {
     const { data } = await supabase
       .from('prds')
       .select('*')
@@ -365,9 +366,113 @@ export class PRDGenerator {
           filename: `prd-${data.title.replace(/\s+/g, '-').toLowerCase()}.txt`,
           mimeType: 'text/plain'
         };
+      case 'pdf':
+        const pdfBlob = this.convertToPDF(data.content, data.title);
+        return {
+          data: pdfBlob,
+          filename: `prd-${data.title.replace(/\s+/g, '-').toLowerCase()}.pdf`,
+          mimeType: 'application/pdf'
+        };
       default:
         throw new Error(`Unsupported export format: ${format}`);
     }
+  }
+
+  private convertToPDF(content: string, title: string): Blob {
+    const pdf = new jsPDF();
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const margin = 20;
+    const maxWidth = pageWidth - (margin * 2);
+    
+    // Set font
+    pdf.setFont('helvetica');
+    
+    // Add title
+    pdf.setFontSize(20);
+    pdf.text(title, margin, 30);
+    
+    // Add content
+    pdf.setFontSize(12);
+    let yPosition = 50;
+    
+    // Split content into lines and handle page breaks
+    const lines = content.split('\n');
+    
+    for (const line of lines) {
+      // Handle headers
+      if (line.startsWith('# ')) {
+        pdf.setFontSize(18);
+        pdf.setFont('helvetica', 'bold');
+        const headerText = line.substring(2);
+        const wrappedHeader = pdf.splitTextToSize(headerText, maxWidth);
+        
+        // Check if we need a new page
+        if (yPosition + (wrappedHeader.length * 10) > pdf.internal.pageSize.getHeight() - margin) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+        
+        pdf.text(wrappedHeader, margin, yPosition);
+        yPosition += wrappedHeader.length * 10 + 5;
+        
+      } else if (line.startsWith('## ')) {
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        const headerText = line.substring(3);
+        const wrappedHeader = pdf.splitTextToSize(headerText, maxWidth);
+        
+        if (yPosition + (wrappedHeader.length * 8) > pdf.internal.pageSize.getHeight() - margin) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+        
+        pdf.text(wrappedHeader, margin, yPosition);
+        yPosition += wrappedHeader.length * 8 + 3;
+        
+      } else if (line.startsWith('### ')) {
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'bold');
+        const headerText = line.substring(4);
+        const wrappedHeader = pdf.splitTextToSize(headerText, maxWidth);
+        
+        if (yPosition + (wrappedHeader.length * 7) > pdf.internal.pageSize.getHeight() - margin) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+        
+        pdf.text(wrappedHeader, margin, yPosition);
+        yPosition += wrappedHeader.length * 7 + 2;
+        
+      } else if (line.trim() !== '') {
+        // Regular text
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        
+        // Remove markdown formatting
+        let cleanLine = line.replace(/\*\*(.*?)\*\*/g, '$1'); // Bold
+        cleanLine = cleanLine.replace(/\*(.*?)\*/g, '$1'); // Italic
+        cleanLine = cleanLine.replace(/`(.*?)`/g, '$1'); // Code
+        
+        const wrappedText = pdf.splitTextToSize(cleanLine, maxWidth);
+        
+        // Check if we need a new page
+        if (yPosition + (wrappedText.length * 6) > pdf.internal.pageSize.getHeight() - margin) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+        
+        pdf.text(wrappedText, margin, yPosition);
+        yPosition += wrappedText.length * 6;
+      } else {
+        // Empty line
+        yPosition += 4;
+      }
+      
+      // Reset font for next line
+      pdf.setFont('helvetica', 'normal');
+    }
+    
+    return new Blob([pdf.output('blob')], { type: 'application/pdf' });
   }
 
   private convertMarkdownToHtml(markdown: string): string {
