@@ -146,14 +146,27 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
     troubleshootingGuide: null
   };
 
-  // Create a map of story titles to phase numbers for easier lookup
+  // Create a comprehensive map of story titles to phase numbers
   const storyToPhaseMap = new Map();
   phases.forEach((phase: any, index: number) => {
     const phaseNumber = index + 1;
-    phase.stories?.forEach((storyTitle: string) => {
-      storyToPhaseMap.set(storyTitle.toLowerCase().trim(), phaseNumber);
-    });
+    if (phase.stories && Array.isArray(phase.stories)) {
+      phase.stories.forEach((storyTitle: string) => {
+        // Store multiple variations of the title for better matching
+        const cleanTitle = storyTitle.toLowerCase().trim();
+        storyToPhaseMap.set(cleanTitle, phaseNumber);
+        storyToPhaseMap.set(storyTitle, phaseNumber); // Original case
+        
+        // Also try without common prefixes
+        const withoutAs = cleanTitle.replace(/^as\s+(?:a|an)\s+[^,]+,?\s*/i, '').trim();
+        if (withoutAs !== cleanTitle) {
+          storyToPhaseMap.set(withoutAs, phaseNumber);
+        }
+      });
+    }
   });
+
+  console.log('Story to phase mapping created:', Object.fromEntries(storyToPhaseMap));
 
   // Generate phase overview prompts with proper story mapping
   if (phases.length > 0) {
@@ -177,27 +190,48 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
     prompts.phaseOverviews.push(phaseOverview);
   }
 
-  // Generate individual story prompts for ALL user stories
+  // Generate individual story prompts for ALL user stories with correct phase assignment
   for (let i = 0; i < userStories.length; i++) {
     const story = userStories[i];
     const previousStories = userStories.slice(0, i);
     const nextStory = userStories[i + 1];
     
-    // Determine which phase this story belongs to
-    const storyPhase = storyToPhaseMap.get(story.title.toLowerCase().trim()) || 1;
+    // Determine which phase this story belongs to using multiple matching strategies
+    let storyPhase = 1; // Default to phase 1
+    
+    // Try exact title match first
+    if (storyToPhaseMap.has(story.title)) {
+      storyPhase = storyToPhaseMap.get(story.title);
+    } else if (storyToPhaseMap.has(story.title.toLowerCase().trim())) {
+      storyPhase = storyToPhaseMap.get(story.title.toLowerCase().trim());
+    } else {
+      // Try partial matching - find which phase contains a story with similar title
+      const storyTitleLower = story.title.toLowerCase().trim();
+      for (const [mappedTitle, phaseNum] of storyToPhaseMap.entries()) {
+        if (typeof mappedTitle === 'string') {
+          const mappedTitleLower = mappedTitle.toLowerCase().trim();
+          if (storyTitleLower.includes(mappedTitleLower) || mappedTitleLower.includes(storyTitleLower)) {
+            storyPhase = phaseNum;
+            console.log(`Matched story "${story.title}" to phase ${phaseNum} via partial match with "${mappedTitle}"`);
+            break;
+          }
+        }
+      }
+    }
+    
+    console.log(`Story "${story.title}" assigned to phase ${storyPhase}`);
     
     const storyPrompt = generateStoryPrompt(story, previousStories, nextStory, projectData, platform, storyPhase);
     prompts.storyPrompts.push(storyPrompt);
 
     // Generate transition prompt to next story
     if (nextStory) {
-      const nextStoryPhase = storyToPhaseMap.get(nextStory.title.toLowerCase().trim()) || 1;
       const transitionPrompt = generateTransitionPrompt(story, nextStory, platform, storyPhase);
       prompts.transitionPrompts.push(transitionPrompt);
     }
   }
 
-  console.log('Generated individual story prompts:', prompts.storyPrompts.length);
+  console.log('Generated individual story prompts with phases:', prompts.storyPrompts.map(s => ({ title: s.title, phase: s.phaseNumber })));
 
   // Generate comprehensive troubleshooting guide
   if (openAIApiKey) {
@@ -306,7 +340,7 @@ function generateStoryPrompt(story: any, previousStories: any[], nextStory: any,
     content: buildStoryPromptContent(story, previousStories, nextStory, projectData, platform),
     executionOrder: story.execution_order || 1,
     platform,
-    phaseNumber,
+    phaseNumber, // Make sure this is set correctly
     dependencies: story.dependencies || [],
     estimatedTime: story.estimated_hours || 4,
     acceptanceCriteria: story.acceptance_criteria || []
@@ -469,7 +503,7 @@ Ready to continue building! 🚀
     `.trim(),
     executionOrder: Math.floor((story.execution_order || 0) * 1000) + 500, // Use integer for transition order
     platform,
-    phaseNumber
+    phaseNumber // Make sure transitions also get the correct phase number
   };
 }
 
@@ -818,8 +852,9 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
     }
   }
 
-  // Save story prompts with phase_number
+  // Save story prompts with correct phase_number
   for (const story of prompts.storyPrompts) {
+    console.log(`Saving story prompt: ${story.title} to phase ${story.phaseNumber}`);
     const { error } = await supabase
       .from('generated_prompts')
       .insert({
@@ -830,7 +865,7 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
         title: story.title,
         content: story.content,
         execution_order: story.executionOrder,
-        phase_number: story.phaseNumber
+        phase_number: story.phaseNumber // This is the key fix
       });
 
     if (error) {
