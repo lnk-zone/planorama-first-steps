@@ -3,3 +3,6 @@ project_id = "whxeaaijmaxizdjwrkto"
 
 [functions.generate-features]
 verify_jwt = false
+
+[functions.generate-prd]
+verify_jwt = false
