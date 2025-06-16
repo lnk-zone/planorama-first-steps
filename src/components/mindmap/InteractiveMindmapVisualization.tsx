@@ -1,4 +1,3 @@
-
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import {
   ReactFlow,
@@ -12,6 +11,7 @@ import {
   Edge,
   Node,
   NodeTypes,
+  EdgeTypes,
   ConnectionMode,
   MarkerType,
   BackgroundVariant,
@@ -19,9 +19,11 @@ import {
 import '@xyflow/react/dist/style.css';
 import { ProfessionalRootNode, ProfessionalFeatureNode } from './ProfessionalNodes';
 import { MindmapToolbar } from './MindmapToolbar';
+import RelationshipEdge from './RelationshipEdge';
 import { ProfessionalLayoutEngine } from '@/lib/enhancedLayoutEngine';
 import { toast } from '@/hooks/use-toast';
 import { useFeatures } from '@/hooks/useFeatures';
+import { useUserStoriesCache } from '@/hooks/useUserStoriesCache';
 
 export interface MindmapNode {
   id: string;
@@ -56,6 +58,10 @@ const nodeTypes: NodeTypes = {
   featureNode: ProfessionalFeatureNode,
 };
 
+const edgeTypes: EdgeTypes = {
+  relationship: RelationshipEdge,
+};
+
 export interface InteractiveMindmapVisualizationProps {
   mindmap: MindmapStructure;
   mindmapId?: string;
@@ -76,16 +82,14 @@ const InteractiveMindmapVisualization: React.FC<InteractiveMindmapVisualizationP
   onMindmapUpdate,
 }) => {
   const { features } = useFeatures(projectId);
+  const { userStoriesCache, loadUserStoriesForFeature } = useUserStoriesCache();
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
-  const [userStoriesCache, setUserStoriesCache] = useState<Record<string, any[]>>({});
 
   // Build stable feature mapping for node-feature synchronization
   const featureMapping = useMemo(() => {
     const mapping: Record<string, string> = {};
     
     console.log('Building feature mapping...');
-    console.log('Features:', features);
-    console.log('Mindmap nodes:', mindmap.nodes);
     
     // First try to map by featureId in metadata
     mindmap.nodes.forEach(node => {
@@ -93,7 +97,6 @@ const InteractiveMindmapVisualization: React.FC<InteractiveMindmapVisualizationP
         const feature = features.find(f => f.id === node.metadata.featureId);
         if (feature) {
           mapping[node.id] = feature.id;
-          console.log(`Mapped node ${node.id} to feature ${feature.id} by featureId`);
         }
       }
     });
@@ -106,29 +109,30 @@ const InteractiveMindmapVisualization: React.FC<InteractiveMindmapVisualizationP
         );
         if (matchingFeature) {
           mapping[node.id] = matchingFeature.id;
-          console.log(`Mapped node ${node.id} to feature ${matchingFeature.id} by title`);
         }
       }
     });
     
-    console.log('Final feature mapping:', mapping);
     return mapping;
   }, [mindmap.nodes, features]);
 
-  // Generate connections based on feature hierarchy and explicit mindmap connections
-  const connections = useMemo(() => {
-    const allConnections: MindmapConnection[] = [];
+  // Enhanced connections that include story dependencies
+  const enhancedConnections = useMemo(() => {
+    const allConnections: Array<MindmapConnection & { 
+      relationshipType?: 'hierarchy' | 'blocks' | 'depends_on' | 'related';
+      label?: string;
+    }> = [];
     
-    console.log('Generating connections...');
+    console.log('Generating enhanced connections...');
     
-    // Add explicit mindmap connections first
-    allConnections.push(...mindmap.connections);
-    console.log('Added explicit connections:', mindmap.connections);
+    // Add explicit mindmap connections (hierarchy)
+    mindmap.connections.forEach(conn => {
+      allConnections.push({ ...conn, relationshipType: 'hierarchy' });
+    });
     
     // Add connections based on feature parent-child relationships
     features.forEach(feature => {
       if (feature.parent_id) {
-        // Find nodes corresponding to this feature and its parent
         const childNodeId = Object.keys(featureMapping).find(nodeId => 
           featureMapping[nodeId] === feature.id
         );
@@ -137,13 +141,15 @@ const InteractiveMindmapVisualization: React.FC<InteractiveMindmapVisualizationP
         );
         
         if (childNodeId && parentNodeId) {
-          // Avoid duplicates
           const existingConnection = allConnections.find(conn => 
             conn.from === parentNodeId && conn.to === childNodeId
           );
           if (!existingConnection) {
-            allConnections.push({ from: parentNodeId, to: childNodeId });
-            console.log(`Added parent-child connection: ${parentNodeId} -> ${childNodeId}`);
+            allConnections.push({ 
+              from: parentNodeId, 
+              to: childNodeId, 
+              relationshipType: 'hierarchy' 
+            });
           }
         }
       } else {
@@ -156,61 +162,50 @@ const InteractiveMindmapVisualization: React.FC<InteractiveMindmapVisualizationP
             conn.from === mindmap.rootNode.id && conn.to === nodeId
           );
           if (!existingConnection) {
-            allConnections.push({ from: mindmap.rootNode.id, to: nodeId });
-            console.log(`Added root connection: ${mindmap.rootNode.id} -> ${nodeId}`);
+            allConnections.push({ 
+              from: mindmap.rootNode.id, 
+              to: nodeId, 
+              relationshipType: 'hierarchy' 
+            });
           }
         }
       }
     });
     
-    console.log('Final connections:', allConnections);
+    // Add story dependency connections for expanded nodes
+    expandedNodes.forEach(nodeId => {
+      const featureId = featureMapping[nodeId];
+      if (featureId) {
+        const stories = userStoriesCache[featureId] || [];
+        
+        // For each story, check if it has dependencies with other stories in the mindmap
+        stories.forEach(story => {
+          // This would require fetching story dependencies
+          // For now, we'll add placeholder logic that could be enhanced
+          // when story dependencies are available in the cache
+        });
+      }
+    });
+    
+    console.log('Final enhanced connections:', allConnections);
     return allConnections;
-  }, [mindmap.connections, mindmap.rootNode.id, features, featureMapping]);
+  }, [mindmap.connections, mindmap.rootNode.id, features, featureMapping, expandedNodes, userStoriesCache]);
 
   // Load user stories for expanded nodes
-  const loadUserStoriesForNode = useCallback(async (nodeId: string) => {
-    const featureId = featureMapping[nodeId];
-    if (!featureId || userStoriesCache[featureId]) {
-      return;
-    }
-
-    console.log(`Loading user stories for feature ${featureId}`);
-    
-    try {
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data, error } = await supabase
-        .from('user_stories')
-        .select('*')
-        .eq('feature_id', featureId)
-        .order('created_at');
-
-      if (error) {
-        console.error('Failed to load user stories:', error);
-        return;
-      }
-
-      console.log(`Loaded ${data?.length || 0} user stories for feature ${featureId}`);
-      
-      setUserStoriesCache(prev => ({
-        ...prev,
-        [featureId]: data || []
-      }));
-    } catch (error) {
-      console.error('Error loading user stories:', error);
-    }
-  }, [featureMapping, userStoriesCache]);
-
-  // Load user stories when nodes are expanded
   useEffect(() => {
-    const loadPromises = Array.from(expandedNodes).map(loadUserStoriesForNode);
+    const loadPromises = Array.from(expandedNodes).map(nodeId => {
+      const featureId = featureMapping[nodeId];
+      if (featureId) {
+        return loadUserStoriesForFeature(featureId);
+      }
+      return Promise.resolve([]);
+    });
     Promise.all(loadPromises);
-  }, [expandedNodes, loadUserStoriesForNode]);
+  }, [expandedNodes, featureMapping, loadUserStoriesForFeature]);
 
   // Convert mindmap structure to React Flow format
   const initialNodes = useMemo(() => {
     const flowNodes: Node[] = [];
-
-    console.log('Building React Flow nodes...');
 
     // Add root node
     flowNodes.push({
@@ -232,7 +227,11 @@ const InteractiveMindmapVisualization: React.FC<InteractiveMindmapVisualizationP
       const userStories = featureId ? (userStoriesCache[featureId] || []) : [];
       const isExpanded = expandedNodes.has(node.id);
 
-      console.log(`Node ${node.id}: featureId=${featureId}, stories=${userStories.length}, expanded=${isExpanded}`);
+      // Count dependencies for visual indicator
+      const dependencyCount = enhancedConnections.filter(conn => 
+        (conn.from === node.id || conn.to === node.id) && 
+        conn.relationshipType !== 'hierarchy'
+      ).length;
 
       flowNodes.push({
         id: node.id,
@@ -248,11 +247,11 @@ const InteractiveMindmapVisualization: React.FC<InteractiveMindmapVisualizationP
           featureId,
           userStories,
           isExpanded,
+          dependencyCount,
           onEdit: onNodeEdit || (() => {}),
           onAddChild: onNodeAdd || (() => {}),
           onDelete: onNodeDelete || (() => {}),
           onToggleExpand: (nodeId: string) => {
-            console.log(`Toggling expand for node ${nodeId}`);
             setExpandedNodes(prev => {
               const newSet = new Set(prev);
               if (newSet.has(nodeId)) {
@@ -267,32 +266,32 @@ const InteractiveMindmapVisualization: React.FC<InteractiveMindmapVisualizationP
       });
     });
 
-    console.log('Built React Flow nodes:', flowNodes);
     return flowNodes;
-  }, [mindmap, featureMapping, features, userStoriesCache, expandedNodes, onNodeEdit, onNodeAdd, onNodeDelete]);
+  }, [mindmap, featureMapping, features, userStoriesCache, expandedNodes, enhancedConnections, onNodeEdit, onNodeAdd, onNodeDelete]);
 
   const initialEdges = useMemo(() => {
-    console.log('Building React Flow edges from connections:', connections);
-    
-    const edges = connections.map((conn) => ({
+    const edges = enhancedConnections.map((conn) => ({
       id: `${conn.from}-${conn.to}`,
       source: conn.from,
       target: conn.to,
-      type: 'smoothstep',
-      animated: false,
+      type: 'relationship',
+      animated: conn.relationshipType !== 'hierarchy',
       style: { 
-        stroke: '#e2e8f0', 
-        strokeWidth: 2,
+        strokeWidth: conn.relationshipType === 'hierarchy' ? 2 : 1,
       },
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: '#e2e8f0',
+        color: conn.relationshipType === 'hierarchy' ? '#3b82f6' : '#6b7280',
+      },
+      data: {
+        relationshipType: conn.relationshipType,
+        label: conn.label,
       },
     }));
 
     console.log('Built React Flow edges:', edges);
     return edges;
-  }, [connections]);
+  }, [enhancedConnections]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -302,14 +301,12 @@ const InteractiveMindmapVisualization: React.FC<InteractiveMindmapVisualizationP
     [setEdges]
   );
 
-  // Update nodes and edges when dependencies change - but prevent infinite loops
+  // Update nodes and edges when dependencies change
   useEffect(() => {
-    console.log('Updating nodes and edges due to dependency change');
     setNodes(initialNodes);
   }, [initialNodes, setNodes]);
 
   useEffect(() => {
-    console.log('Updating edges due to dependency change');
     setEdges(initialEdges);
   }, [initialEdges, setEdges]);
 
@@ -396,6 +393,7 @@ const InteractiveMindmapVisualization: React.FC<InteractiveMindmapVisualizationP
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           connectionMode={ConnectionMode.Loose}
           fitView
           fitViewOptions={{ padding: 0.15 }}

@@ -11,7 +11,9 @@ import {
   ChevronRight,
   ChevronDown,
   User,
-  CheckCircle2
+  CheckCircle2,
+  Link,
+  AlertTriangle
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -46,6 +48,7 @@ interface FeatureNodeProps {
       priority?: string;
     }>;
     isExpanded?: boolean;
+    dependencyCount?: number;
     onEdit: (nodeId: string) => void;
     onAddChild: (nodeId: string) => void;
     onDelete: (nodeId: string) => void;
@@ -123,6 +126,7 @@ export const ProfessionalFeatureNode: React.FC<FeatureNodeProps> = ({ data }) =>
   };
 
   const hasUserStories = data.userStories && data.userStories.length > 0;
+  const hasDependencies = data.dependencyCount && data.dependencyCount > 0;
 
   return (
     <Card className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 min-w-[300px] max-w-[380px]">
@@ -130,7 +134,17 @@ export const ProfessionalFeatureNode: React.FC<FeatureNodeProps> = ({ data }) =>
         {/* Header */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-gray-900 text-base leading-snug mb-2 pr-2">{data.title}</h3>
+            <div className="flex items-center gap-2 mb-2">
+              <h3 className="font-semibold text-gray-900 text-base leading-snug pr-2">{data.title}</h3>
+              {hasDependencies && (
+                <div className="flex items-center gap-1">
+                  <Link className="h-4 w-4 text-blue-500" />
+                  <Badge variant="outline" className="text-xs px-1 py-0 bg-blue-50 text-blue-700 border-blue-200">
+                    {data.dependencyCount}
+                  </Badge>
+                </div>
+              )}
+            </div>
             
             {/* Badges */}
             <div className="flex items-center gap-1.5 mb-3 flex-wrap">
