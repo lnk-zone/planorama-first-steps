@@ -116,6 +116,60 @@ export type Database = {
           },
         ]
       }
+      generated_prompts: {
+        Row: {
+          content: string
+          created_at: string | null
+          execution_order: number
+          id: string
+          phase_number: number | null
+          platform: string
+          project_id: string | null
+          prompt_type: string
+          title: string
+          user_story_id: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          execution_order: number
+          id?: string
+          phase_number?: number | null
+          platform: string
+          project_id?: string | null
+          prompt_type: string
+          title: string
+          user_story_id?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          execution_order?: number
+          id?: string
+          phase_number?: number | null
+          platform?: string
+          project_id?: string | null
+          prompt_type?: string
+          title?: string
+          user_story_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generated_prompts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generated_prompts_user_story_id_fkey"
+            columns: ["user_story_id"]
+            isOneToOne: false
+            referencedRelation: "user_stories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mindmaps: {
         Row: {
           created_at: string | null
@@ -333,6 +387,51 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      story_completions: {
+        Row: {
+          completed_at: string | null
+          id: string
+          notes: string | null
+          platform: string
+          project_id: string | null
+          user_id: string | null
+          user_story_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          id?: string
+          notes?: string | null
+          platform: string
+          project_id?: string | null
+          user_id?: string | null
+          user_story_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          id?: string
+          notes?: string | null
+          platform?: string
+          project_id?: string | null
+          user_id?: string | null
+          user_story_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_completions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "story_completions_user_story_id_fkey"
+            columns: ["user_story_id"]
+            isOneToOne: false
+            referencedRelation: "user_stories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       story_dependencies: {
         Row: {
@@ -552,6 +651,44 @@ export type Database = {
             columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "project_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      troubleshooting_guides: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          platform: string
+          project_id: string | null
+          sections: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          platform: string
+          project_id?: string | null
+          sections?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          platform?: string
+          project_id?: string | null
+          sections?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "troubleshooting_guides_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
