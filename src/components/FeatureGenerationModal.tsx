@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -5,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Zap, Clock, Users, FileText, CheckCircle } from 'lucide-react';
+import { Zap, Clock, Users, FileText, CheckCircle, RefreshCw, AlertTriangle } from 'lucide-react';
 import { AIFeatureGenerator, type GenerationResult, type GenerationProgressData } from '@/lib/aiFeatureGenerator';
 import GenerationProgress from '@/components/GenerationProgress';
 import { toast } from 'sonner';
@@ -14,6 +15,7 @@ interface FeatureGenerationModalProps {
   isOpen: boolean;
   onClose: () => void;
   projectId: string;
+  isRegeneration?: boolean;
   onFeaturesGenerated: (result: GenerationResult) => void;
 }
 
@@ -21,6 +23,7 @@ const FeatureGenerationModal: React.FC<FeatureGenerationModalProps> = ({
   isOpen,
   onClose,
   projectId,
+  isRegeneration = false,
   onFeaturesGenerated
 }) => {
   const [projectDescription, setProjectDescription] = useState('');
@@ -44,14 +47,15 @@ const FeatureGenerationModal: React.FC<FeatureGenerationModalProps> = ({
       const result = await generator.generateFeaturesWithDependencies(
         projectId,
         projectDescription,
-        appType
+        appType,
+        isRegeneration
       );
 
       setGeneratedResult(result);
-      toast.success('Features generated successfully!');
+      toast.success(`Features ${isRegeneration ? 'regenerated' : 'generated'} successfully!`);
     } catch (error) {
       console.error('Generation failed:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to generate features');
+      toast.error(error instanceof Error ? error.message : `Failed to ${isRegeneration ? 'regenerate' : 'generate'} features`);
     } finally {
       setIsGenerating(false);
     }
@@ -61,7 +65,7 @@ const FeatureGenerationModal: React.FC<FeatureGenerationModalProps> = ({
     if (generatedResult) {
       onFeaturesGenerated(generatedResult);
       onClose();
-      toast.success('Features added to your project!');
+      toast.success(`Features ${isRegeneration ? 'replaced' : 'added to'} your project!`);
     }
   };
 
@@ -87,14 +91,36 @@ const FeatureGenerationModal: React.FC<FeatureGenerationModalProps> = ({
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5" />
-            AI Feature Generation with Dependencies
+            {isRegeneration ? (
+              <>
+                <RefreshCw className="h-5 w-5" />
+                Regenerate Features with Dependencies
+              </>
+            ) : (
+              <>
+                <Zap className="h-5 w-5" />
+                AI Feature Generation with Dependencies
+              </>
+            )}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
           {!generatedResult && !isGenerating && (
             <>
+              {isRegeneration && (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="h-4 w-4 text-orange-600" />
+                    <span className="font-medium text-orange-800">Replace Existing Features</span>
+                  </div>
+                  <p className="text-sm text-orange-700">
+                    This will permanently delete all existing features and user stories for this project 
+                    and replace them with newly generated ones. This action cannot be undone.
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-4">
                 <div>
                   <label className="text-sm font-medium mb-2 block">
@@ -136,9 +162,25 @@ const FeatureGenerationModal: React.FC<FeatureGenerationModalProps> = ({
                 <Button variant="outline" onClick={onClose}>
                   Cancel
                 </Button>
-                <Button onClick={handleGenerate} disabled={!projectDescription.trim()}>
-                  <Zap className="h-4 w-4 mr-2" />
-                  Generate Features & Dependencies
+                <Button 
+                  onClick={handleGenerate} 
+                  disabled={!projectDescription.trim()}
+                  className={isRegeneration 
+                    ? "bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700"
+                    : "bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                  }
+                >
+                  {isRegeneration ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Regenerate Features & Dependencies
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-4 w-4 mr-2" />
+                      Generate Features & Dependencies
+                    </>
+                  )}
                 </Button>
               </div>
             </>
@@ -155,14 +197,16 @@ const FeatureGenerationModal: React.FC<FeatureGenerationModalProps> = ({
           {generatedResult && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Generated Plan</h3>
+                <h3 className="text-lg font-semibold">
+                  {isRegeneration ? 'Regenerated Plan' : 'Generated Plan'}
+                </h3>
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={handleReset}>
                     Generate New Plan
                   </Button>
                   <Button onClick={handleAccept}>
                     <CheckCircle className="h-4 w-4 mr-2" />
-                    Accept & Add to Project
+                    {isRegeneration ? 'Replace All Features' : 'Accept & Add to Project'}
                   </Button>
                 </div>
               </div>

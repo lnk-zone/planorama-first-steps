@@ -90,11 +90,16 @@ const ProjectDetail: React.FC = () => {
 
   const handleRegenerate = () => {
     setIsRegenerating(true);
-    setShowAIFeatureModal(true);
+    setShowFeatureGenerationModal(true);
   };
 
   const handleCloseAIModal = () => {
     setShowAIFeatureModal(false);
+    setIsRegenerating(false);
+  };
+
+  const handleCloseFeatureModal = () => {
+    setShowFeatureGenerationModal(false);
     setIsRegenerating(false);
   };
 
@@ -216,7 +221,7 @@ const ProjectDetail: React.FC = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setShowFeatureGenerationModal(true)}
+                  onClick={handleRegenerate}
                 >
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Regenerate Features
@@ -316,8 +321,9 @@ const ProjectDetail: React.FC = () => {
 
         <FeatureGenerationModal
           isOpen={showFeatureGenerationModal}
-          onClose={() => setShowFeatureGenerationModal(false)}
+          onClose={handleCloseFeatureModal}
           projectId={project.id}
+          isRegeneration={isRegenerating}
           onFeaturesGenerated={handleFeatureGeneration}
         />
 

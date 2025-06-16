@@ -46,7 +46,8 @@ export class AIFeatureGenerator {
   async generateFeaturesWithDependencies(
     projectId: string,
     projectDescription: string,
-    appType: string = 'web_app'
+    appType: string = 'web_app',
+    isRegeneration: boolean = false
   ): Promise<GenerationResult> {
     const maxRetries = 2;
     let lastError: Error | null = null;
@@ -55,7 +56,13 @@ export class AIFeatureGenerator {
       try {
         this.updateProgress('analyzing', 10, 'Analyzing project requirements...');
 
-        this.updateProgress('generating_features', 30, `Generating comprehensive features with AI... (Attempt ${attempt}/${maxRetries})`);
+        // If this is a regeneration, clean up existing data first
+        if (isRegeneration) {
+          this.updateProgress('analyzing', 15, 'Removing existing features and user stories...');
+          await this.cleanupExistingData(projectId);
+        }
+
+        this.updateProgress('generating_features', 30, `${isRegeneration ? 'Regenerating' : 'Generating'} comprehensive features with AI... (Attempt ${attempt}/${maxRetries})`);
 
         console.log(`Calling enhanced feature generation service (attempt ${attempt}/${maxRetries})...`);
         
@@ -127,7 +134,7 @@ export class AIFeatureGenerator {
         
         const executionPlan = await this.calculateExecutionOrder(projectId, userStories);
         
-        this.updateProgress('complete', 100, 'Feature generation complete!');
+        this.updateProgress('complete', 100, `Feature ${isRegeneration ? 'regeneration' : 'generation'} complete!`);
 
         return { features, userStories, executionPlan };
 
@@ -145,7 +152,7 @@ export class AIFeatureGenerator {
     }
 
     // If we get here, all retries failed
-    let errorMessage = 'Failed to generate features after multiple attempts. Please try again.';
+    let errorMessage = `Failed to ${isRegeneration ? 'regenerate' : 'generate'} features after multiple attempts. Please try again.`;
     
     if (lastError) {
       if (lastError.message.includes('OpenAI API key')) {
@@ -160,6 +167,51 @@ export class AIFeatureGenerator {
     }
     
     throw new Error(errorMessage);
+  }
+
+  private async cleanupExistingData(projectId: string): Promise<void> {
+    try {
+      // First, get all features for this project
+      const { data: existingFeatures, error: featuresError } = await supabase
+        .from('features')
+        .select('id')
+        .eq('project_id', projectId);
+
+      if (featuresError) throw featuresError;
+
+      if (existingFeatures && existingFeatures.length > 0) {
+        const featureIds = existingFeatures.map(f => f.id);
+
+        // Delete user stories first (due to foreign key constraints)
+        const { error: storiesError } = await supabase
+          .from('user_stories')
+          .delete()
+          .in('feature_id', featureIds);
+
+        if (storiesError) throw storiesError;
+
+        // Delete features
+        const { error: featuresDeleteError } = await supabase
+          .from('features')
+          .delete()
+          .eq('project_id', projectId);
+
+        if (featuresDeleteError) throw featuresDeleteError;
+      }
+
+      // Delete existing execution plans
+      const { error: plansError } = await supabase
+        .from('execution_plans')
+        .delete()
+        .eq('project_id', projectId);
+
+      if (plansError) throw plansError;
+
+      console.log('Successfully cleaned up existing project data');
+    } catch (error) {
+      console.error('Error cleaning up existing data:', error);
+      throw new Error('Failed to clean up existing data before regeneration');
+    }
   }
 
   private updateProgress(stage: GenerationProgressData['stage'], progress: number, currentAction: string) {
