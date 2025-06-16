@@ -34,12 +34,11 @@ export class PRDGenerator {
     template: 'comprehensive' | 'technical' | 'business' | 'ai_builder' = 'ai_builder'
   ): Promise<PRDDocument> {
     
-    const projectData = await this.gatherProjectDataWithOrder(projectId);
+    const projectData = await this.gatherEnhancedProjectData(projectId);
     
     try {
-      console.log('Calling generate-prd edge function...');
+      console.log('Calling enhanced generate-prd edge function...');
       
-      // Call the Supabase edge function for PRD generation
       const { data: prdResponse, error: functionError } = await supabase
         .functions
         .invoke('generate-prd', {
@@ -61,7 +60,6 @@ export class PRDGenerator {
       const prdContent = prdResponse.content;
       const sections = this.parsePRDSections(prdContent);
       
-      // Save PRD to database
       const prdRecord = await this.savePRDToDatabase(projectId, prdContent, template, sections);
       await this.savePRDSections(prdRecord.id, sections);
       
@@ -86,7 +84,7 @@ export class PRDGenerator {
     }
   }
 
-  private async gatherProjectDataWithOrder(projectId: string) {
+  private async gatherEnhancedProjectData(projectId: string) {
     // Fetch project data
     const { data: project } = await supabase
       .from('projects')
@@ -94,34 +92,22 @@ export class PRDGenerator {
       .eq('id', projectId)
       .single();
 
-    // Fetch features
+    // Fetch features with enhanced data
     const { data: features } = await supabase
       .from('features')
       .select('*')
       .eq('project_id', projectId)
       .order('execution_order', { ascending: true });
 
-    // Fetch user stories
+    // Fetch user stories with enhanced data
     const { data: userStories } = await supabase
       .from('user_stories')
       .select('*')
       .in('feature_id', features?.map(f => f.id) || [])
       .order('execution_order', { ascending: true });
 
-    // Mock execution plan
-    const executionPlan = {
-      totalStories: userStories?.length || 0,
-      estimatedTotalHours: userStories?.reduce((sum, story) => sum + (story.estimated_hours || 0), 0) || 0,
-      phases: [
-        {
-          number: 1,
-          name: "Phase 1: Foundation",
-          stories: userStories?.slice(0, Math.ceil(userStories.length / 2)).map(s => s.title) || [],
-          estimatedHours: userStories?.slice(0, Math.ceil(userStories.length / 2))
-            .reduce((sum, story) => sum + (story.estimated_hours || 0), 0) || 0
-        }
-      ]
-    };
+    // Enhanced execution plan with better analysis
+    const executionPlan = this.generateEnhancedExecutionPlan(features || [], userStories || []);
 
     return {
       project,
@@ -129,6 +115,123 @@ export class PRDGenerator {
       userStories: userStories || [],
       executionPlan
     };
+  }
+
+  private generateEnhancedExecutionPlan(features: any[], userStories: any[]) {
+    const totalStories = userStories.length;
+    const estimatedTotalHours = userStories.reduce((sum, story) => sum + (story.estimated_hours || 2), 0);
+    
+    // Create logical phases based on execution order and dependencies
+    const orderedFeatures = features.sort((a, b) => (a.execution_order || 999) - (b.execution_order || 999));
+    const phases = [];
+    
+    let currentPhase = [];
+    let currentPhaseNumber = 1;
+    let currentPhaseHours = 0;
+    
+    for (const feature of orderedFeatures) {
+      const featureStories = userStories.filter(story => story.feature_id === feature.id);
+      const featureHours = featureStories.reduce((sum, story) => sum + (story.estimated_hours || 2), 0);
+      
+      // Start new phase if current one is getting too large (>20 hours) or has >4 features
+      if ((currentPhaseHours + featureHours > 20 || currentPhase.length >= 4) && currentPhase.length > 0) {
+        phases.push({
+          number: currentPhaseNumber,
+          name: `Phase ${currentPhaseNumber}: ${this.getPhaseNameFromFeatures(currentPhase)}`,
+          features: [...currentPhase],
+          stories: userStories.filter(story => currentPhase.some(f => f.id === story.feature_id)).map(s => s.title),
+          estimatedHours: currentPhaseHours,
+          description: this.generatePhaseDescription(currentPhase)
+        });
+        currentPhase = [];
+        currentPhaseNumber++;
+        currentPhaseHours = 0;
+      }
+      
+      currentPhase.push(feature);
+      currentPhaseHours += featureHours;
+    }
+    
+    // Add final phase if there are remaining features
+    if (currentPhase.length > 0) {
+      phases.push({
+        number: currentPhaseNumber,
+        name: `Phase ${currentPhaseNumber}: ${this.getPhaseNameFromFeatures(currentPhase)}`,
+        features: currentPhase,
+        stories: userStories.filter(story => currentPhase.some(f => f.id === story.feature_id)).map(s => s.title),
+        estimatedHours: currentPhaseHours,
+        description: this.generatePhaseDescription(currentPhase)
+      });
+    }
+
+    return {
+      totalStories,
+      estimatedTotalHours,
+      phases,
+      averageStoryHours: totalStories > 0 ? Math.round(estimatedTotalHours / totalStories) : 2,
+      complexity: this.assessProjectComplexity(features, userStories),
+      riskFactors: this.identifyRiskFactors(features, userStories)
+    };
+  }
+
+  private getPhaseNameFromFeatures(features: any[]): string {
+    const categories = [...new Set(features.map(f => f.category || 'Core'))];
+    const priorities = [...new Set(features.map(f => f.priority || 'medium'))];
+    
+    if (features.some(f => f.category === 'authentication' || f.title.toLowerCase().includes('auth'))) {
+      return 'Authentication & Foundation';
+    } else if (features.some(f => f.category === 'core' || f.priority === 'high')) {
+      return 'Core Features';
+    } else if (features.some(f => f.category === 'integration' || f.title.toLowerCase().includes('integration'))) {
+      return 'Integrations & Advanced Features';
+    } else {
+      return `${categories[0] || 'Development'} Features`;
+    }
+  }
+
+  private generatePhaseDescription(features: any[]): string {
+    const featureTypes = features.map(f => f.category || 'feature').join(', ');
+    const complexity = features.some(f => f.complexity === 'high') ? 'high' : 
+                     features.some(f => f.complexity === 'medium') ? 'medium' : 'low';
+    
+    return `This phase focuses on ${featureTypes} with ${complexity} complexity. Key deliverables include ${features.map(f => f.title).join(', ')}.`;
+  }
+
+  private assessProjectComplexity(features: any[], userStories: any[]): string {
+    const highComplexityFeatures = features.filter(f => f.complexity === 'high').length;
+    const totalFeatures = features.length;
+    const avgStoryHours = userStories.length > 0 ? 
+      userStories.reduce((sum, s) => sum + (s.estimated_hours || 2), 0) / userStories.length : 2;
+
+    if (highComplexityFeatures > totalFeatures * 0.3 || avgStoryHours > 4) {
+      return 'High - Complex integrations and advanced features';
+    } else if (highComplexityFeatures > 0 || avgStoryHours > 2.5) {
+      return 'Medium - Standard web application complexity';
+    } else {
+      return 'Low - Simple CRUD operations and basic features';
+    }
+  }
+
+  private identifyRiskFactors(features: any[], userStories: any[]): string[] {
+    const risks = [];
+    
+    if (features.some(f => f.title.toLowerCase().includes('integration'))) {
+      risks.push('Third-party integration dependencies');
+    }
+    
+    if (features.some(f => f.complexity === 'high')) {
+      risks.push('High complexity features may require additional development time');
+    }
+    
+    if (userStories.some(s => (s.estimated_hours || 0) > 6)) {
+      risks.push('Some user stories exceed recommended AI builder session length');
+    }
+    
+    if (features.length > 15) {
+      risks.push('Large feature scope may require careful prioritization');
+    }
+    
+    return risks.length > 0 ? risks : ['Low risk - straightforward implementation'];
   }
 
   private parsePRDSections(content: string): PRDSection[] {
