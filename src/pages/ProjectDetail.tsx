@@ -3,9 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Zap, RefreshCw, Plus, Settings, BarChart3, Users } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Zap, RefreshCw, Plus, Users } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useProjects } from '@/hooks/useProjects';
 import { useFeatures } from '@/hooks/useFeatures';
@@ -14,9 +13,12 @@ import AIFeatureGenerationModal from '@/components/AIFeatureGenerationModal';
 import FeatureGenerationModal from '@/components/FeatureGenerationModal';
 import AddEditFeatureModal from '@/components/AddEditFeatureModal';
 import EditProjectModal from '@/components/EditProjectModal';
-import EnhancedFeatureHierarchy from '@/components/EnhancedFeatureHierarchy';
+import CollapsibleFeatureCard from '@/components/CollapsibleFeatureCard';
 import ExecutionOrderDisplay from '@/components/ExecutionOrderDisplay';
 import ProjectMetrics from '@/components/ProjectMetrics';
+import PRDTab from '@/components/PRDTab';
+import PromptsTab from '@/components/PromptsTab';
+import ProjectHeader from '@/components/ProjectHeader';
 import { toast } from '@/hooks/use-toast';
 import type { GenerationResult } from '@/lib/aiFeatureGenerator';
 
@@ -31,7 +33,7 @@ const ProjectDetail: React.FC = () => {
   const [showAIFeatureModal, setShowAIFeatureModal] = useState(false);
   const [showFeatureGenerationModal, setShowFeatureGenerationModal] = useState(false);
   const [showAddFeatureModal, setShowAddFeatureModal] = useState(false);
-  const [showEditProjectModal, setShowEditProjectModal] = useState(false);
+  const [showEditProject Modal, setShowEditProjectModal] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [editingFeature, setEditingFeature] = useState(null);
 
@@ -49,14 +51,16 @@ const ProjectDetail: React.FC = () => {
 
   if (projectsLoading || featuresLoading || storiesLoading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-          <div className="h-4 bg-gray-200 rounded w-2/3"></div>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="h-24 bg-gray-200 rounded"></div>
-            <div className="h-24 bg-gray-200 rounded"></div>
-            <div className="h-24 bg-gray-200 rounded"></div>
+      <div className="min-h-screen bg-gray-50">
+        <div className="container mx-auto px-4 py-8">
+          <div className="animate-pulse space-y-6">
+            <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+            <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="h-24 bg-gray-200 rounded"></div>
+              <div className="h-24 bg-gray-200 rounded"></div>
+              <div className="h-24 bg-gray-200 rounded"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -95,10 +99,6 @@ const ProjectDetail: React.FC = () => {
     setIsRegenerating(false);
   };
 
-  const handleFeatureSelect = (feature: any) => {
-    console.log('Feature selected:', feature);
-  };
-
   const handleAddChild = (parentFeature: any) => {
     console.log('Add child to:', parentFeature);
   };
@@ -113,14 +113,12 @@ const ProjectDetail: React.FC = () => {
   };
 
   const handleSaveFeature = async (featureData: any) => {
-    // Handle feature save logic
     await refetchFeatures();
     setShowAddFeatureModal(false);
     setEditingFeature(null);
   };
 
   const handleProjectUpdate = async () => {
-    // Refresh project data if needed
     setShowEditProjectModal(false);
   };
 
@@ -128,7 +126,6 @@ const ProjectDetail: React.FC = () => {
   const totalStories = userStories.length;
   const completedStories = userStories.filter(s => s.status === 'completed').length;
 
-  // Create a mock execution plan for now - this would come from the AI generation later
   const mockExecutionPlan = {
     totalStories: totalStories,
     executionOrder: userStories
@@ -154,210 +151,200 @@ const ProjectDetail: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">{project.title}</h1>
-          {project.description && (
-            <p className="text-gray-600 mt-2">{project.description}</p>
-          )}
-          <div className="flex items-center gap-2 mt-3">
-            <Badge variant="outline">{project.status}</Badge>
-            <Badge variant="secondary">{project.project_type}</Badge>
+    <div className="min-h-screen bg-gray-50">
+      <ProjectHeader project={project} />
+      
+      <div className="container mx-auto px-4 py-6 space-y-6">
+        {/* Project description - visible on larger screens */}
+        {project.description && (
+          <div className="hidden sm:block">
+            <p className="text-gray-600">{project.description}</p>
           </div>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowEditProjectModal(true)}
-          >
-            <Settings className="h-4 w-4 mr-2" />
-            Settings
-          </Button>
+        )}
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-2xl font-bold">{features.length}</div>
+              <p className="text-sm text-gray-600">Features</p>
+            </CardContent>
+          </Card>
           
-          {!hasFeatures ? (
-            <Button
-              onClick={() => setShowAIFeatureModal(true)}
-              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-            >
-              <Zap className="h-4 w-4 mr-2" />
-              Generate Features
-            </Button>
-          ) : (
-            <Button
-              onClick={handleRegenerate}
-              variant="outline"
-              className="border-orange-200 text-orange-700 hover:bg-orange-50"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Regenerate Features
-            </Button>
-          )}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-2xl font-bold">{totalStories}</div>
+              <p className="text-sm text-gray-600">User Stories</p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-2xl font-bold text-green-600">{completedStories}</div>
+              <p className="text-sm text-gray-600">
+                {totalStories > 0 ? Math.round((completedStories / totalStories) * 100) : 0}% done
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-2xl font-bold">
+                {userStories.reduce((sum, story) => sum + (story.estimated_hours || 0), 0)}h
+              </div>
+              <p className="text-sm text-gray-600">Est. Hours</p>
+            </CardContent>
+          </Card>
         </div>
+
+        {/* Main Content */}
+        {hasFeatures ? (
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <TabsList className="grid w-full max-w-2xl grid-cols-3 sm:grid-cols-6">
+                <TabsTrigger value="features">Features</TabsTrigger>
+                <TabsTrigger value="user-stories">Stories</TabsTrigger>
+                <TabsTrigger value="execution">Execution</TabsTrigger>
+                <TabsTrigger value="metrics">Metrics</TabsTrigger>
+                <TabsTrigger value="prd">PRD</TabsTrigger>
+                <TabsTrigger value="prompts">Prompts</TabsTrigger>
+              </TabsList>
+              
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowFeatureGenerationModal(true)}
+                >
+                  <Zap className="h-4 w-4 mr-2" />
+                  Generate More
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAddFeatureModal(true)}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Feature
+                </Button>
+              </div>
+            </div>
+
+            <TabsContent value="features" className="space-y-4">
+              <div className="grid gap-4">
+                {features.map((feature) => (
+                  <CollapsibleFeatureCard
+                    key={feature.id}
+                    feature={feature}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onAddChild={handleAddChild}
+                  />
+                ))}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="user-stories" className="space-y-4">
+              <div className="text-center py-8">
+                <Users className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">All User Stories</h3>
+                <p className="text-gray-600">
+                  View and manage all user stories across features
+                </p>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="execution" className="space-y-4">
+              <ExecutionOrderDisplay 
+                userStories={userStories}
+                executionPlan={mockExecutionPlan}
+              />
+            </TabsContent>
+
+            <TabsContent value="metrics" className="space-y-4">
+              <ProjectMetrics projects={[project]} />
+            </TabsContent>
+
+            <TabsContent value="prd" className="space-y-4">
+              <PRDTab 
+                projectTitle={project.title}
+                projectDescription={project.description}
+              />
+            </TabsContent>
+
+            <TabsContent value="prompts" className="space-y-4">
+              <PromptsTab 
+                projectTitle={project.title}
+                projectDescription={project.description}
+                features={features}
+              />
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <Card className="text-center py-12">
+            <CardContent>
+              <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <Users className="h-12 w-12 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No features yet</h3>
+              <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                Get started by generating features with AI or add them manually. Features help organize your project into manageable pieces.
+              </p>
+              <div className="flex justify-center gap-3">
+                <Button
+                  onClick={() => setShowAIFeatureModal(true)}
+                  className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                >
+                  <Zap className="h-4 w-4 mr-2" />
+                  Generate Features with AI
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowAddFeatureModal(true)}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Feature Manually
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Modals */}
+        <AIFeatureGenerationModal
+          isOpen={showAIFeatureModal}
+          onClose={handleCloseAIModal}
+          projectId={project.id}
+          projectTitle={project.title}
+          projectDescription={project.description || ''}
+          isRegeneration={isRegenerating}
+          onComplete={handleAIFeatureGeneration}
+        />
+
+        <FeatureGenerationModal
+          isOpen={showFeatureGenerationModal}
+          onClose={() => setShowFeatureGenerationModal(false)}
+          projectId={project.id}
+          onFeaturesGenerated={handleFeatureGeneration}
+        />
+
+        <AddEditFeatureModal
+          isOpen={showAddFeatureModal}
+          onClose={() => {
+            setShowAddFeatureModal(false);
+            setEditingFeature(null);
+          }}
+          feature={editingFeature}
+          onSave={handleSaveFeature}
+        />
+
+        <EditProjectModal
+          isOpen={showEditProjectModal}
+          onClose={() => setShowEditProjectModal(false)}
+          onSuccess={handleProjectUpdate}
+          project={project}
+        />
       </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Features</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{features.length}</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">User Stories</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalStories}</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Completed</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{completedStories}</div>
-            <p className="text-sm text-gray-600">
-              {totalStories > 0 ? Math.round((completedStories / totalStories) * 100) : 0}% done
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Estimated Hours</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {userStories.reduce((sum, story) => sum + (story.estimated_hours || 0), 0)}h
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Main Content */}
-      {hasFeatures ? (
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <div className="flex items-center justify-between">
-            <TabsList className="grid w-full max-w-md grid-cols-3">
-              <TabsTrigger value="features">Features</TabsTrigger>
-              <TabsTrigger value="execution">Execution</TabsTrigger>
-              <TabsTrigger value="metrics">Metrics</TabsTrigger>
-            </TabsList>
-            
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowFeatureGenerationModal(true)}
-              >
-                <Zap className="h-4 w-4 mr-2" />
-                Generate More
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowAddFeatureModal(true)}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Feature
-              </Button>
-            </div>
-          </div>
-
-          <TabsContent value="features" className="space-y-4">
-            <EnhancedFeatureHierarchy 
-              features={features}
-              onFeatureSelect={handleFeatureSelect}
-              onAddChild={handleAddChild}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          </TabsContent>
-
-          <TabsContent value="execution" className="space-y-4">
-            <ExecutionOrderDisplay 
-              userStories={userStories}
-              executionPlan={mockExecutionPlan}
-            />
-          </TabsContent>
-
-          <TabsContent value="metrics" className="space-y-4">
-            <ProjectMetrics projects={[project]} />
-          </TabsContent>
-        </Tabs>
-      ) : (
-        <Card className="text-center py-12">
-          <CardContent>
-            <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-              <Users className="h-12 w-12 text-gray-400" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No features yet</h3>
-            <p className="text-gray-600 mb-6 max-w-md mx-auto">
-              Get started by generating features with AI or add them manually. Features help organize your project into manageable pieces.
-            </p>
-            <div className="flex justify-center gap-3">
-              <Button
-                onClick={() => setShowAIFeatureModal(true)}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-              >
-                <Zap className="h-4 w-4 mr-2" />
-                Generate Features with AI
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setShowAddFeatureModal(true)}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Feature Manually
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Modals */}
-      <AIFeatureGenerationModal
-        isOpen={showAIFeatureModal}
-        onClose={handleCloseAIModal}
-        projectId={project.id}
-        projectTitle={project.title}
-        projectDescription={project.description || ''}
-        isRegeneration={isRegenerating}
-        onComplete={handleAIFeatureGeneration}
-      />
-
-      <FeatureGenerationModal
-        isOpen={showFeatureGenerationModal}
-        onClose={() => setShowFeatureGenerationModal(false)}
-        projectId={project.id}
-        onFeaturesGenerated={handleFeatureGeneration}
-      />
-
-      <AddEditFeatureModal
-        isOpen={showAddFeatureModal}
-        onClose={() => {
-          setShowAddFeatureModal(false);
-          setEditingFeature(null);
-        }}
-        feature={editingFeature}
-        onSave={handleSaveFeature}
-      />
-
-      <EditProjectModal
-        isOpen={showEditProjectModal}
-        onClose={() => setShowEditProjectModal(false)}
-        onSuccess={handleProjectUpdate}
-        project={project}
-      />
     </div>
   );
 };

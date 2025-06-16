@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FolderPlus, Search, Filter, Calendar, Edit, Trash2, Eye, Save } from 'lucide-react';
+import { FolderPlus, Search, Filter, Calendar, Edit, Trash2, Save } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { format } from 'date-fns';
 import { useEnhancedTemplates } from '@/hooks/useEnhancedTemplates';
@@ -110,11 +110,11 @@ const Projects = () => {
     }
   };
 
-  const handleSaveAsTemplate = async (project: Project) => {
+  const handleSaveAsTemplate = async (project: Project, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent card navigation
     try {
       console.log('Starting template creation for project:', project.id);
       
-      // Fetch project features to include in template
       const { data: features, error } = await supabase
         .from('features')
         .select('title, description, priority')
@@ -128,17 +128,12 @@ const Projects = () => {
       }
 
       console.log('Fetched features for template:', features);
-      console.log('Number of features found:', features?.length || 0);
 
-      // Create proper template data structure
       const templateData: TemplateProjectData = {
         name: project.title,
         description: project.description || '',
         features: features || []
       };
-
-      console.log('Template data prepared:', templateData);
-      console.log('Features in template data:', templateData.features.length);
 
       setTemplateProjectData(templateData);
       setShowTemplateModal(true);
@@ -148,12 +143,14 @@ const Projects = () => {
     }
   };
 
-  const handleEditProject = (project: Project) => {
+  const handleEditProject = (project: Project, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent card navigation
     setEditingProject(project);
     setShowEditModal(true);
   };
 
-  const handleDeleteProject = async (projectId: string) => {
+  const handleDeleteProject = async (projectId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent card navigation
     if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
       return;
     }
@@ -168,13 +165,17 @@ const Projects = () => {
       if (error) throw error;
 
       showSuccess('Project deleted successfully');
-      fetchProjects(); // Refresh project list
+      fetchProjects();
     } catch (error) {
       console.error('Error deleting project:', error);
       showError('Failed to delete project. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleProjectClick = (projectId: string) => {
+    navigate(`/projects/${projectId}`);
   };
 
   const handleCreateProject = async (projectData: CreateProjectData) => {
@@ -195,14 +196,13 @@ const Projects = () => {
 
       if (error) throw error;
 
-      // Apply template if selected
       if (projectData.template) {
         await applyTemplate(projectData.template.id, project.id);
       }
 
       showSuccess('Project created successfully');
       setShowCreateModal(false);
-      fetchProjects(); // Refresh project list
+      fetchProjects();
     } catch (error) {
       console.error('Error creating project:', error);
       showError('Failed to create project. Please try again.');
@@ -310,7 +310,11 @@ const Projects = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProjects.map((project) => (
-              <Card key={project.id} className="hover:shadow-lg transition-shadow">
+              <Card 
+                key={project.id} 
+                className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => handleProjectClick(project.id)}
+              >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <CardTitle className="text-lg font-semibold text-gray-900 line-clamp-1">
@@ -320,16 +324,7 @@ const Projects = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => navigate(`/projects/${project.id}`)}
-                        className="h-8 w-8 p-0"
-                        title="View project"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleSaveAsTemplate(project)}
+                        onClick={(e) => handleSaveAsTemplate(project, e)}
                         className="h-8 w-8 p-0 text-green-600 hover:text-green-800 hover:bg-green-50"
                         title="Save as template"
                       >
@@ -338,7 +333,7 @@ const Projects = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleEditProject(project)}
+                        onClick={(e) => handleEditProject(project, e)}
                         className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
                         title="Edit project"
                       >
@@ -347,7 +342,7 @@ const Projects = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleDeleteProject(project.id)}
+                        onClick={(e) => handleDeleteProject(project.id, e)}
                         className="h-8 w-8 p-0 text-red-600 hover:text-red-800 hover:bg-red-50"
                         title="Delete project"
                       >
@@ -378,14 +373,13 @@ const Projects = () => {
           </div>
         )}
 
-        {/* Create Project Modal */}
+        {/* Modals */}
         <CreateProjectModal
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
           onSubmit={handleCreateProject}
         />
 
-        {/* Edit Project Modal */}
         <EditProjectModal
           isOpen={showEditModal}
           onClose={() => {
@@ -396,7 +390,6 @@ const Projects = () => {
           project={editingProject}
         />
 
-        {/* Create Template Modal */}
         <CreateTemplateModal
           isOpen={showTemplateModal}
           onClose={() => {
