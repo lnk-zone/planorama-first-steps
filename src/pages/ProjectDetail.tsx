@@ -272,6 +272,7 @@ const ProjectDetail: React.FC = () => {
 
             <TabsContent value="prompts" className="space-y-4">
               <PromptsTab 
+                projectId={project.id}
                 projectTitle={project.title}
                 projectDescription={project.description}
                 features={features}
