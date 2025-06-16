@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -275,7 +274,7 @@ const PromptsTab: React.FC<PromptsTabProps> = ({
                 <Button
                   onClick={() => generatePrompts()}
                   disabled={isGenerating}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
                 >
                   <Play className="h-4 w-4" />
                   {isGenerating ? 'Generating...' : prompts.length > 0 ? 'Regenerate' : 'Generate Prompts'}
@@ -309,7 +308,11 @@ const PromptsTab: React.FC<PromptsTabProps> = ({
                     <p className="text-gray-600 mb-6">
                       Generate detailed prompts for each user story to guide your development process.
                     </p>
-                    <Button onClick={() => generatePrompts()} disabled={isGenerating}>
+                    <Button 
+                      onClick={() => generatePrompts()} 
+                      disabled={isGenerating}
+                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                    >
                       <Play className="h-4 w-4 mr-2" />
                       Generate {platform.name} Prompts
                     </Button>
