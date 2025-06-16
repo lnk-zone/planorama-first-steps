@@ -151,6 +151,94 @@ export type Database = {
           },
         ]
       }
+      prd_sections: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          is_editable: boolean | null
+          prd_id: string | null
+          section_name: string
+          section_order: number
+          updated_at: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          is_editable?: boolean | null
+          prd_id?: string | null
+          section_name: string
+          section_order: number
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          is_editable?: boolean | null
+          prd_id?: string | null
+          section_name?: string
+          section_order?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prd_sections_prd_id_fkey"
+            columns: ["prd_id"]
+            isOneToOne: false
+            referencedRelation: "prds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prds: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          project_id: string | null
+          sections: Json | null
+          template: string
+          title: string
+          updated_at: string | null
+          version: number | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          project_id?: string | null
+          sections?: Json | null
+          template?: string
+          title: string
+          updated_at?: string | null
+          version?: number | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          project_id?: string | null
+          sections?: Json | null
+          template?: string
+          title?: string
+          updated_at?: string | null
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prds_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_templates: {
         Row: {
           category: string

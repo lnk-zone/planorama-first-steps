@@ -1,8 +1,14 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, Zap, Download, Eye } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { FileText, Zap, Download, Eye, Clock, Users, Target, Wrench, RefreshCw } from 'lucide-react';
+import { usePRD } from '@/hooks/usePRD';
+import { useParams } from 'react-router-dom';
 
 interface PRDTabProps {
   projectTitle: string;
@@ -10,133 +16,273 @@ interface PRDTabProps {
 }
 
 const PRDTab: React.FC<PRDTabProps> = ({ projectTitle, projectDescription }) => {
-  const handleGeneratePRD = () => {
-    // Placeholder for AI PRD generation
-    console.log('Generate PRD with AI');
+  const { id: projectId } = useParams<{ id: string }>();
+  const { prd, isLoading, isGenerating, isExporting, generatePRD, exportPRD } = usePRD(projectId || '');
+  const [selectedTemplate, setSelectedTemplate] = useState<'comprehensive' | 'technical' | 'business' | 'ai_builder'>('ai_builder');
+
+  const handleGeneratePRD = async () => {
+    try {
+      await generatePRD(selectedTemplate);
+    } catch (error) {
+      // Error handling is done in the hook
+    }
   };
 
-  const handleDownloadPRD = () => {
-    // Placeholder for PRD download
-    console.log('Download PRD');
+  const handleExport = async (format: 'markdown' | 'html' | 'text') => {
+    try {
+      await exportPRD(format);
+    } catch (error) {
+      // Error handling is done in the hook
+    }
   };
 
-  const handlePreviewPRD = () => {
-    // Placeholder for PRD preview
-    console.log('Preview PRD');
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Product Requirements Document</h2>
-        <p className="text-gray-600">
-          Generate a comprehensive PRD for your project using AI
-        </p>
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+          <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+          <div className="h-32 bg-gray-200 rounded"></div>
+        </div>
       </div>
+    );
+  }
 
-      {/* Main Action Card */}
-      <Card className="border-2 border-dashed border-gray-300 bg-gray-50">
-        <CardHeader className="text-center pb-4">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center mb-4">
-            <FileText className="h-8 w-8 text-white" />
-          </div>
-          <CardTitle className="text-xl">No PRD Generated Yet</CardTitle>
-        </CardHeader>
-        <CardContent className="text-center">
-          <p className="text-gray-600 mb-6 max-w-md mx-auto">
-            Generate a professional Product Requirements Document that includes objectives, 
-            user personas, functional requirements, and technical specifications.
+  if (!prd) {
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Product Requirements Document</h2>
+          <p className="text-gray-600">
+            Generate a comprehensive PRD with detailed specifications, execution phases, and implementation guidance
           </p>
-          <Button
-            onClick={handleGeneratePRD}
-            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-            size="lg"
-          >
-            <Zap className="h-5 w-5 mr-2" />
-            Generate PRD with AI
-          </Button>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Features Preview */}
-      <div className="grid md:grid-cols-2 gap-6">
+        {/* Template Selection */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <FileText className="h-5 w-5 text-blue-600" />
-              What's Included
+            <CardTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-blue-600" />
+              Choose PRD Template
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <ul className="space-y-3 text-sm">
-              <li className="flex items-start gap-2">
-                <span className="text-green-600 mt-1">✓</span>
-                <span>Executive Summary & Project Overview</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-600 mt-1">✓</span>
-                <span>User Personas & Journey Maps</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-600 mt-1">✓</span>
-                <span>Functional & Non-functional Requirements</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-600 mt-1">✓</span>
-                <span>Technical Architecture & Stack</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-600 mt-1">✓</span>
-                <span>Implementation Timeline & Milestones</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-600 mt-1">✓</span>
-                <span>Success Metrics & KPIs</span>
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Template Type</label>
+              <Select value={selectedTemplate} onValueChange={(value: any) => setSelectedTemplate(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ai_builder">AI Builder Optimized (Recommended)</SelectItem>
+                  <SelectItem value="comprehensive">Comprehensive Business</SelectItem>
+                  <SelectItem value="technical">Technical Focused</SelectItem>
+                  <SelectItem value="business">Business Focused</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Eye className="h-5 w-5 text-green-600" />
-              Preview Sample
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="bg-gray-50 p-4 rounded-lg text-sm">
-              <h4 className="font-semibold mb-2">1. Executive Summary</h4>
-              <p className="text-gray-600 mb-3">
-                {projectTitle} aims to {projectDescription || 'solve key user problems through innovative technology'}...
-              </p>
-              
-              <h4 className="font-semibold mb-2">2. Target Users</h4>
-              <p className="text-gray-600 mb-3">
-                Primary: [User personas will be generated based on your project]
-              </p>
-              
-              <h4 className="font-semibold mb-2">3. Core Features</h4>
-              <p className="text-gray-600">
-                [Detailed feature breakdown from your feature list]
-              </p>
+            <div className="grid md:grid-cols-2 gap-4 text-sm">
+              <div className="space-y-2">
+                <h4 className="font-medium">AI Builder Optimized Includes:</h4>
+                <ul className="space-y-1 text-gray-600">
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 mt-1">✓</span>
+                    <span>Lovable, Bolt & Cursor specific guidance</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 mt-1">✓</span>
+                    <span>Copy-paste ready specifications</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 mt-1">✓</span>
+                    <span>Incremental development approach</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 mt-1">✓</span>
+                    <span>Common pitfalls and solutions</span>
+                  </li>
+                </ul>
+              </div>
+              <div className="space-y-2">
+                <h4 className="font-medium">All Templates Include:</h4>
+                <ul className="space-y-1 text-gray-600">
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 mt-1">✓</span>
+                    <span>Executive summary & project overview</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 mt-1">✓</span>
+                    <span>Feature specifications with execution order</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 mt-1">✓</span>
+                    <span>Implementation roadmap & milestones</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 mt-1">✓</span>
+                    <span>Success metrics & testing criteria</span>
+                  </li>
+                </ul>
+              </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* Main Action Card */}
+        <Card className="border-2 border-dashed border-gray-300 bg-gray-50">
+          <CardHeader className="text-center pb-4">
+            <div className="mx-auto w-16 h-16 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center mb-4">
+              <FileText className="h-8 w-8 text-white" />
+            </div>
+            <CardTitle className="text-xl">Ready to Generate PRD</CardTitle>
+          </CardHeader>
+          <CardContent className="text-center">
+            <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              Generate a professional Product Requirements Document with detailed specifications, 
+              user stories organized by execution order, and implementation guidance.
+            </p>
+            <Button
+              onClick={handleGeneratePRD}
+              disabled={isGenerating}
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+              size="lg"
+            >
+              {isGenerating ? (
+                <>
+                  <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
+                  Generating PRD...
+                </>
+              ) : (
+                <>
+                  <Zap className="h-5 w-5 mr-2" />
+                  Generate Comprehensive PRD
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header with Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Product Requirements Document</h2>
+          <p className="text-gray-600">
+            Generated on {prd.generatedAt.toLocaleDateString()} • {prd.wordCount.toLocaleString()} words
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => handleExport('markdown')}
+            disabled={isExporting}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Markdown
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => handleExport('html')}
+            disabled={isExporting}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            HTML
+          </Button>
+          <Button
+            onClick={handleGeneratePRD}
+            disabled={isGenerating}
+            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+          >
+            {isGenerating ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Regenerating...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Regenerate PRD
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex justify-center gap-4">
-        <Button variant="outline" onClick={handlePreviewPRD} disabled>
-          <Eye className="h-4 w-4 mr-2" />
-          Preview
-        </Button>
-        <Button variant="outline" onClick={handleDownloadPRD} disabled>
-          <Download className="h-4 w-4 mr-2" />
-          Download
-        </Button>
+      {/* PRD Metadata */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-blue-600">{prd.metadata.totalFeatures}</div>
+            <p className="text-sm text-gray-600">Features</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-green-600">{prd.metadata.totalUserStories}</div>
+            <p className="text-sm text-gray-600">User Stories</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-purple-600">{prd.metadata.estimatedDevelopmentTime}h</div>
+            <p className="text-sm text-gray-600">Est. Hours</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-orange-600">{prd.metadata.phases}</div>
+            <p className="text-sm text-gray-600">Phases</p>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* PRD Content */}
+      <Tabs defaultValue="preview" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="preview">Preview</TabsTrigger>
+          <TabsTrigger value="sections">Edit Sections</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="preview" className="space-y-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="prose max-w-none">
+                <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
+                  {p rd.content}
+                </pre>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="sections" className="space-y-4">
+          <div className="space-y-4">
+            {prd.sections.map((section, index) => (
+              <Card key={index}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">{section.name}</CardTitle>
+                    <Badge variant="outline">Section {section.order}</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="prose max-w-none">
+                    <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed bg-gray-50 p-4 rounded-lg">
+                      {section.content}
+                    </pre>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
