@@ -115,7 +115,7 @@ const PromptsTab: React.FC<PromptsTabProps> = ({
     }
   };
 
-  // Group prompts by type and phase
+  // Group prompts by type
   const phaseOverviews = prompts.filter(p => p.prompt_type === 'phase_overview');
   const storyPrompts = prompts.filter(p => p.prompt_type === 'story');
   const transitionPrompts = prompts.filter(p => p.prompt_type === 'transition');
@@ -125,15 +125,32 @@ const PromptsTab: React.FC<PromptsTabProps> = ({
   const completedStories = storyPrompts.filter(p => p.user_story_id && isStoryComplete(p.user_story_id)).length;
   const progressPercentage = totalStories > 0 ? (completedStories / totalStories) * 100 : 0;
 
-  // Group by phases
+  // Group by phases with corrected logic
   const phases = phaseOverviews.map(phase => {
-    const phaseStories = storyPrompts.filter(story => 
-      Math.floor(story.execution_order / 1000) === phase.phase_number
-    );
-    const phaseTransitions = transitionPrompts.filter(transition =>
-      Math.floor(transition.execution_order) >= (phase.phase_number - 1) * 1000 &&
-      Math.floor(transition.execution_order) < phase.phase_number * 1000
-    );
+    // Get stories that belong to this phase based on the phase_number field
+    const phaseStories = storyPrompts.filter(story => {
+      // If phase_number is available in the prompt, use it
+      if (story.phase_number) {
+        return story.phase_number === phase.phase_number;
+      }
+      
+      // Fallback: use execution order ranges if phase_number is not available
+      // Phase 1: orders 1-50, Phase 2: orders 51-100, etc.
+      const minOrder = ((phase.phase_number || 1) - 1) * 50 + 1;
+      const maxOrder = (phase.phase_number || 1) * 50;
+      return story.execution_order >= minOrder && story.execution_order <= maxOrder;
+    });
+
+    const phaseTransitions = transitionPrompts.filter(transition => {
+      if (transition.phase_number) {
+        return transition.phase_number === phase.phase_number;
+      }
+      
+      // Fallback for transitions
+      const minOrder = ((phase.phase_number || 1) - 1) * 50 + 1;
+      const maxOrder = (phase.phase_number || 1) * 50;
+      return transition.execution_order >= minOrder && transition.execution_order <= maxOrder;
+    });
     
     return {
       ...phase,
@@ -308,56 +325,60 @@ const PromptsTab: React.FC<PromptsTabProps> = ({
                             {/* Stories in this phase */}
                             <div className="space-y-3">
                               <h4 className="font-semibold text-gray-900">Stories in this phase:</h4>
-                              {phase.stories.map(story => (
-                                <Card key={story.id} className="bg-gray-50">
-                                  <CardHeader className="pb-3">
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-3">
+                              {phase.stories.length > 0 ? (
+                                phase.stories.map(story => (
+                                  <Card key={story.id} className="bg-gray-50">
+                                    <CardHeader className="pb-3">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => story.user_story_id && toggleStoryComplete(story.user_story_id)}
+                                            className="p-1"
+                                          >
+                                            {story.user_story_id && isStoryComplete(story.user_story_id) ? (
+                                              <CheckCircle className="h-5 w-5 text-green-600" />
+                                            ) : (
+                                              <Circle className="h-5 w-5 text-gray-400" />
+                                            )}
+                                          </Button>
+                                          <CardTitle className="text-base">{story.title}</CardTitle>
+                                          <Badge variant="secondary" className="text-xs">
+                                            {story.content.length} chars
+                                          </Badge>
+                                        </div>
                                         <Button
-                                          variant="ghost"
+                                          variant="outline"
                                           size="sm"
-                                          onClick={() => story.user_story_id && toggleStoryComplete(story.user_story_id)}
-                                          className="p-1"
+                                          onClick={() => handleCopyToClipboard(story.content, story.id)}
                                         >
-                                          {story.user_story_id && isStoryComplete(story.user_story_id) ? (
-                                            <CheckCircle className="h-5 w-5 text-green-600" />
+                                          {copiedIndex === story.id ? (
+                                            <>
+                                              <Check className="h-4 w-4 text-green-600 mr-2" />
+                                              Copied!
+                                            </>
                                           ) : (
-                                            <Circle className="h-5 w-5 text-gray-400" />
+                                            <>
+                                              <Copy className="h-4 w-4 mr-2" />
+                                              Copy
+                                            </>
                                           )}
                                         </Button>
-                                        <CardTitle className="text-base">{story.title}</CardTitle>
-                                        <Badge variant="secondary" className="text-xs">
-                                          {story.content.length} chars
-                                        </Badge>
                                       </div>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleCopyToClipboard(story.content, story.id)}
-                                      >
-                                        {copiedIndex === story.id ? (
-                                          <>
-                                            <Check className="h-4 w-4 text-green-600 mr-2" />
-                                            Copied!
-                                          </>
-                                        ) : (
-                                          <>
-                                            <Copy className="h-4 w-4 mr-2" />
-                                            Copy
-                                          </>
-                                        )}
-                                      </Button>
-                                    </div>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <Textarea
-                                      value={story.content}
-                                      readOnly
-                                      className="min-h-[300px] text-sm font-mono resize-none"
-                                    />
-                                  </CardContent>
-                                </Card>
-                              ))}
+                                    </CardHeader>
+                                    <CardContent>
+                                      <Textarea
+                                        value={story.content}
+                                        readOnly
+                                        className="min-h-[300px] text-sm font-mono resize-none"
+                                      />
+                                    </CardContent>
+                                  </Card>
+                                ))
+                              ) : (
+                                <p className="text-gray-500 italic">No individual story prompts found for this phase.</p>
+                              )}
                             </div>
                           </CardContent>
                         </CollapsibleContent>

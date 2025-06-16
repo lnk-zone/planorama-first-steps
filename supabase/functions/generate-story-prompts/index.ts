@@ -146,6 +146,15 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
     troubleshootingGuide: null
   };
 
+  // Create a map of story titles to phase numbers for easier lookup
+  const storyToPhaseMap = new Map();
+  phases.forEach((phase: any, index: number) => {
+    const phaseNumber = index + 1;
+    phase.stories?.forEach((storyTitle: string) => {
+      storyToPhaseMap.set(storyTitle.toLowerCase().trim(), phaseNumber);
+    });
+  });
+
   // Generate phase overview prompts with proper story mapping
   if (phases.length > 0) {
     for (let i = 0; i < phases.length; i++) {
@@ -174,12 +183,16 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
     const previousStories = userStories.slice(0, i);
     const nextStory = userStories[i + 1];
     
-    const storyPrompt = generateStoryPrompt(story, previousStories, nextStory, projectData, platform);
+    // Determine which phase this story belongs to
+    const storyPhase = storyToPhaseMap.get(story.title.toLowerCase().trim()) || 1;
+    
+    const storyPrompt = generateStoryPrompt(story, previousStories, nextStory, projectData, platform, storyPhase);
     prompts.storyPrompts.push(storyPrompt);
 
     // Generate transition prompt to next story
     if (nextStory) {
-      const transitionPrompt = generateTransitionPrompt(story, nextStory, platform);
+      const nextStoryPhase = storyToPhaseMap.get(nextStory.title.toLowerCase().trim()) || 1;
+      const transitionPrompt = generateTransitionPrompt(story, nextStory, platform, storyPhase);
       prompts.transitionPrompts.push(transitionPrompt);
     }
   }
@@ -286,13 +299,14 @@ Ready to begin this phase! Start with the first user story below.
   `.trim();
 }
 
-function generateStoryPrompt(story: any, previousStories: any[], nextStory: any, projectData: any, platform: string) {
+function generateStoryPrompt(story: any, previousStories: any[], nextStory: any, projectData: any, platform: string, phaseNumber: number = 1) {
   return {
     id: story.id,
     title: `Story ${story.execution_order || 1}: ${story.title}`,
     content: buildStoryPromptContent(story, previousStories, nextStory, projectData, platform),
     executionOrder: story.execution_order || 1,
     platform,
+    phaseNumber,
     dependencies: story.dependencies || [],
     estimatedTime: story.estimated_hours || 4,
     acceptanceCriteria: story.acceptance_criteria || []
@@ -423,7 +437,7 @@ ${getPlatformSpecificFooter(platform)}
   `.trim();
 }
 
-function generateTransitionPrompt(story: any, nextStory: any, platform: string) {
+function generateTransitionPrompt(story: any, nextStory: any, platform: string, phaseNumber: number = 1) {
   return {
     id: `transition-${story.id}-${nextStory.id}`,
     title: `Transition: ${story.title} → ${nextStory.title}`,
@@ -454,7 +468,8 @@ function generateTransitionPrompt(story: any, nextStory: any, platform: string) 
 Ready to continue building! 🚀
     `.trim(),
     executionOrder: Math.floor((story.execution_order || 0) * 1000) + 500, // Use integer for transition order
-    platform
+    platform,
+    phaseNumber
   };
 }
 
@@ -803,7 +818,7 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
     }
   }
 
-  // Save story prompts
+  // Save story prompts with phase_number
   for (const story of prompts.storyPrompts) {
     const { error } = await supabase
       .from('generated_prompts')
@@ -814,7 +829,8 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
         prompt_type: 'story',
         title: story.title,
         content: story.content,
-        execution_order: story.executionOrder
+        execution_order: story.executionOrder,
+        phase_number: story.phaseNumber
       });
 
     if (error) {
@@ -822,7 +838,7 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
     }
   }
 
-  // Save transition prompts
+  // Save transition prompts with phase_number
   for (const transition of prompts.transitionPrompts) {
     const { error } = await supabase
       .from('generated_prompts')
@@ -833,7 +849,8 @@ async function saveGeneratedPrompts(supabase: any, projectId: string, prompts: a
         prompt_type: 'transition',
         title: transition.title,
         content: transition.content,
-        execution_order: transition.executionOrder
+        execution_order: transition.executionOrder,
+        phase_number: transition.phaseNumber
       });
 
     if (error) {
