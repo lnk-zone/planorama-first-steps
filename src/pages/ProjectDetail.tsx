@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,6 @@ import { useProjects } from '@/hooks/useProjects';
 import { useFeatures } from '@/hooks/useFeatures';
 import { useUserStories } from '@/hooks/useUserStories';
 import AIFeatureGenerationModal from '@/components/AIFeatureGenerationModal';
-import FeatureGenerationModal from '@/components/FeatureGenerationModal';
 import AddEditFeatureModal from '@/components/AddEditFeatureModal';
 import EditProjectModal from '@/components/EditProjectModal';
 import CollapsibleFeatureCard from '@/components/CollapsibleFeatureCard';
@@ -30,7 +30,6 @@ const ProjectDetail: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState('metrics');
   const [showAIFeatureModal, setShowAIFeatureModal] = useState(false);
-  const [showFeatureGenerationModal, setShowFeatureGenerationModal] = useState(false);
   const [showAddFeatureModal, setShowAddFeatureModal] = useState(false);
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -79,27 +78,13 @@ const ProjectDetail: React.FC = () => {
     });
   };
 
-  const handleFeatureGeneration = async (result: GenerationResult) => {
-    await refetchFeatures();
-    await refetchStories();
-    toast({
-      title: "Features generated successfully!",
-      description: `Generated ${result.features.length} features with ${result.userStories.length} user stories.`,
-    });
-  };
-
   const handleRegenerate = () => {
     setIsRegenerating(true);
-    setShowFeatureGenerationModal(true);
+    setShowAIFeatureModal(true);
   };
 
   const handleCloseAIModal = () => {
     setShowAIFeatureModal(false);
-    setIsRegenerating(false);
-  };
-
-  const handleCloseFeatureModal = () => {
-    setShowFeatureGenerationModal(false);
     setIsRegenerating(false);
   };
 
@@ -308,7 +293,7 @@ const ProjectDetail: React.FC = () => {
           </Card>
         )}
 
-        {/* Modals */}
+        {/* Enhanced AI Modal for both generation and regeneration */}
         <AIFeatureGenerationModal
           isOpen={showAIFeatureModal}
           onClose={handleCloseAIModal}
@@ -317,14 +302,6 @@ const ProjectDetail: React.FC = () => {
           projectDescription={project.description || ''}
           isRegeneration={isRegenerating}
           onComplete={handleAIFeatureGeneration}
-        />
-
-        <FeatureGenerationModal
-          isOpen={showFeatureGenerationModal}
-          onClose={handleCloseFeatureModal}
-          projectId={project.id}
-          isRegeneration={isRegenerating}
-          onFeaturesGenerated={handleFeatureGeneration}
         />
 
         <AddEditFeatureModal
