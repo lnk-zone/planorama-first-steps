@@ -137,7 +137,8 @@ const AIFeatureGenerationModal: React.FC<AIFeatureGenerationModalProps> = ({
         projectId,
         description,
         appType,
-        enhancedInput
+        enhancedInput,
+        isRegeneration
       );
 
       toast({
