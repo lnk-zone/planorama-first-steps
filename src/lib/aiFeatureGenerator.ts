@@ -1,33 +1,15 @@
+
 import { supabase } from '@/integrations/supabase/client';
-import type { Feature } from '@/hooks/useFeatures';
-import type { UserStory } from '@/hooks/useUserStories';
-import type { Json } from '@/integrations/supabase/types';
-
-export interface ExecutionPlan {
-  id?: string;
-  totalStories: number;
-  executionOrder: string[];
-  estimatedTotalHours: number;
-  phases: Phase[];
-}
-
-export interface Phase {
-  number: number;
-  name: string;
-  stories: string[];
-  estimatedHours: number;
-}
-
-export interface Dependency {
-  targetStoryTitle: string;
-  type: 'must_do_first' | 'do_together';
-  reason: string;
-}
+import { toast } from 'sonner';
 
 export interface GenerationResult {
-  features: Feature[];
-  userStories: UserStory[];
-  executionPlan: ExecutionPlan;
+  features: any[];
+  userStories: any[];
+  executionPlan: {
+    phases: any[];
+    executionOrder: string[];
+    estimatedTotalHours: number;
+  };
 }
 
 export interface GenerationProgressData {
@@ -36,411 +18,242 @@ export interface GenerationProgressData {
   currentAction: string;
 }
 
-export class AIFeatureGenerator {
-  private onProgress?: (progress: GenerationProgressData) => void;
+export interface EnhancedProjectInput {
+  projectTitle: string;
+  projectDescription: string;
+  appType: 'saas' | 'marketplace' | 'ecommerce' | 'ai_tool' | 'social' | 'productivity' | 'other';
+  targetUsers: string;
+  coreUserActions: string;
+  monetizationModel: 'subscription' | 'one_time' | 'freemium' | 'ads' | 'marketplace_fees' | 'other';
+  specificRequirements: string[];
+  technicalPreferences?: string;
+  complexity: 'simple' | 'medium' | 'complex';
+  includeAdvancedFeatures: boolean;
+}
 
-  constructor(onProgress?: (progress: GenerationProgressData) => void) {
-    this.onProgress = onProgress;
+export class AIFeatureGenerator {
+  private progressCallback?: (progress: GenerationProgressData) => void;
+
+  constructor(progressCallback?: (progress: GenerationProgressData) => void) {
+    this.progressCallback = progressCallback;
+  }
+
+  private updateProgress(stage: GenerationProgressData['stage'], progress: number, currentAction: string) {
+    if (this.progressCallback) {
+      this.progressCallback({ stage, progress, currentAction });
+    }
   }
 
   async generateFeaturesWithDependencies(
     projectId: string,
-    projectDescription: string,
-    appType: string = 'web_app',
-    isRegeneration: boolean = false
+    description: string,
+    appType: string,
+    enhancedInput?: EnhancedProjectInput,
+    isRegeneration = false
   ): Promise<GenerationResult> {
-    const maxRetries = 2;
-    let lastError: Error | null = null;
+    try {
+      this.updateProgress('analyzing', 10, 'Analyzing project requirements...');
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        this.updateProgress('analyzing', 10, 'Analyzing project requirements...');
+      // If regeneration, clear existing features and stories
+      if (isRegeneration) {
+        this.updateProgress('analyzing', 20, 'Clearing existing features...');
+        await this.clearExistingData(projectId);
+      }
 
-        // If this is a regeneration, clean up existing data first
-        if (isRegeneration) {
-          this.updateProgress('analyzing', 15, 'Removing existing features and user stories...');
-          await this.cleanupExistingData(projectId);
-        }
+      this.updateProgress('generating_features', 30, 'Generating comprehensive features...');
 
-        this.updateProgress('generating_features', 30, `${isRegeneration ? 'Regenerating' : 'Generating'} comprehensive features with AI... (Attempt ${attempt}/${maxRetries})`);
-
-        console.log(`Calling enhanced feature generation service (attempt ${attempt}/${maxRetries})...`);
-        
-        const { data: aiResponse, error } = await supabase.functions.invoke('generate-features', {
-          body: { 
-            description: projectDescription,
-            appType: appType
+      // Call the enhanced generate-features edge function
+      const { data: generationResult, error: functionError } = await supabase
+        .functions
+        .invoke('generate-features', {
+          body: {
+            description,
+            appType,
+            enhancedInput
           }
         });
+
+      if (functionError) {
+        console.error('Generation function error:', functionError);
+        throw new Error(`Feature generation failed: ${functionError.message}`);
+      }
+
+      if (!generationResult?.features || !generationResult?.userStories) {
+        throw new Error('Invalid response from feature generation service');
+      }
+
+      this.updateProgress('creating_stories', 60, 'Processing user stories...');
+
+      // Process and save features
+      const features = await this.processAndSaveFeatures(projectId, generationResult.features);
+      
+      this.updateProgress('creating_stories', 80, 'Creating user stories with dependencies...');
+
+      // Process and save user stories
+      const userStories = await this.processAndSaveUserStories(projectId, features, generationResult.userStories);
+
+      this.updateProgress('calculating_order', 90, 'Calculating execution order...');
+
+      // Generate execution plan
+      const executionPlan = this.generateExecutionPlan(features, userStories);
+
+      this.updateProgress('complete', 100, 'Generation complete!');
+
+      return {
+        features,
+        userStories,
+        executionPlan
+      };
+
+    } catch (error) {
+      console.error('Feature generation failed:', error);
+      throw error;
+    }
+  }
+
+  private async clearExistingData(projectId: string) {
+    // Delete user stories first (due to foreign key constraints)
+    const { data: features } = await supabase
+      .from('features')
+      .select('id')
+      .eq('project_id', projectId);
+
+    if (features && features.length > 0) {
+      const featureIds = features.map(f => f.id);
+      
+      await supabase
+        .from('user_stories')
+        .delete()
+        .in('feature_id', featureIds);
+    }
+
+    // Then delete features
+    await supabase
+      .from('features')
+      .delete()
+      .eq('project_id', projectId);
+  }
+
+  private async processAndSaveFeatures(projectId: string, rawFeatures: any[]): Promise<any[]> {
+    const features = [];
+    
+    for (let i = 0; i < rawFeatures.length; i++) {
+      const feature = rawFeatures[i];
+      
+      const { data: savedFeature, error } = await supabase
+        .from('features')
+        .insert({
+          project_id: projectId,
+          title: feature.title || feature.name,
+          description: feature.description,
+          priority: feature.priority || 'medium',
+          complexity: feature.complexity || 'medium',
+          category: feature.category || 'core',
+          status: 'planned',
+          estimated_hours: feature.estimatedHours || 8,
+          execution_order: i + 1
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error saving feature:', error);
+        throw new Error(`Failed to save feature: ${feature.title}`);
+      }
+
+      features.push(savedFeature);
+    }
+
+    return features;
+  }
+
+  private async processAndSaveUserStories(projectId: string, features: any[], rawUserStories: any[]): Promise<any[]> {
+    const userStories = [];
+    let executionOrder = 1;
+
+    for (const storyGroup of rawUserStories) {
+      const feature = features.find(f => f.title === storyGroup.featureTitle);
+      
+      if (!feature) {
+        console.warn(`Feature not found for stories: ${storyGroup.featureTitle}`);
+        continue;
+      }
+
+      for (const story of storyGroup.userStories || []) {
+        const { data: savedStory, error } = await supabase
+          .from('user_stories')
+          .insert({
+            feature_id: feature.id,
+            title: typeof story === 'string' ? story : story.title,
+            description: typeof story === 'string' ? story : story.description,
+            acceptance_criteria: typeof story === 'object' ? story.acceptanceCriteria : [],
+            priority: typeof story === 'object' ? story.priority : 'medium',
+            complexity: typeof story === 'object' ? story.complexity : 'medium',
+            estimated_hours: typeof story === 'object' ? story.estimatedHours : 4,
+            execution_order: executionOrder++,
+            status: 'draft',
+            dependencies: typeof story === 'object' ? story.dependencies : []
+          })
+          .select()
+          .single();
 
         if (error) {
-          console.error(`Supabase function error (attempt ${attempt}):`, error);
-          
-          // Create a more specific error message based on the error
-          let errorMessage = 'AI generation failed';
-          if (error.message?.includes('OpenAI API key')) {
-            errorMessage = 'OpenAI API key not configured. Please contact support.';
-          } else if (error.message?.includes('API error')) {
-            errorMessage = 'OpenAI service is temporarily unavailable. Please try again.';
-          } else if (error.message?.includes('format error') || error.message?.includes('JSON')) {
-            errorMessage = 'AI response format error. Please try with a simpler description.';
-          } else if (error.message?.includes('quality error') || error.message?.includes('validation')) {
-            errorMessage = 'AI response quality issue. Please try refining your description.';
-          }
-          
-          lastError = new Error(`${errorMessage}: ${error.message || 'Unknown error'}`);
-          
-          if (attempt === maxRetries) {
-            throw lastError;
-          }
-          
-          // Wait before retrying
-          await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
-          continue;
+          console.error('Error saving user story:', error);
+          throw new Error(`Failed to save user story: ${typeof story === 'string' ? story : story.title}`);
         }
 
-        if (!aiResponse || !aiResponse.features || !aiResponse.userStories) {
-          console.error(`Invalid AI response structure (attempt ${attempt}):`, aiResponse);
-          lastError = new Error('Invalid response structure from AI service');
-          
-          if (attempt === maxRetries) {
-            throw lastError;
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
-          continue;
-        }
-
-        console.log(`AI Response (attempt ${attempt}): ${aiResponse.features.length} features, ${aiResponse.userStories.length} user stories`);
-        
-        // Validate we have authentication features
-        const authFeatures = aiResponse.features.filter((f: any) => 
-          f.category === 'auth' || 
-          f.title.toLowerCase().includes('auth') ||
-          f.title.toLowerCase().includes('login') ||
-          f.title.toLowerCase().includes('register')
-        );
-        
-        if (authFeatures.length < 3) {
-          console.warn('Few authentication features detected, but proceeding...');
-        }
-        
-        this.updateProgress('creating_stories', 60, 'Creating features and user stories...');
-
-        const features = await this.createFeaturesWithOrder(projectId, aiResponse.features);
-        const userStories = await this.createUserStoriesWithDependencies(features, aiResponse.userStories);
-        
-        this.updateProgress('calculating_order', 80, 'Calculating execution order and phases...');
-        
-        const executionPlan = await this.calculateExecutionOrder(projectId, userStories);
-        
-        this.updateProgress('complete', 100, `Feature ${isRegeneration ? 'regeneration' : 'generation'} complete!`);
-
-        return { features, userStories, executionPlan };
-
-      } catch (error) {
-        console.error(`AI feature generation failed (attempt ${attempt}):`, error);
-        lastError = error instanceof Error ? error : new Error('Unknown error');
-        
-        if (attempt === maxRetries) {
-          break;
-        }
-        
-        // Wait before retrying
-        await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+        userStories.push(savedStory);
       }
     }
 
-    // If we get here, all retries failed
-    let errorMessage = `Failed to ${isRegeneration ? 'regenerate' : 'generate'} features after multiple attempts. Please try again.`;
-    
-    if (lastError) {
-      if (lastError.message.includes('OpenAI API key')) {
-        errorMessage = 'OpenAI API key is not configured. Please contact support.';
-      } else if (lastError.message.includes('OpenAI service') || lastError.message.includes('API error')) {
-        errorMessage = 'OpenAI service is temporarily unavailable. Please try again in a moment.';
-      } else if (lastError.message.includes('format error') || lastError.message.includes('Invalid JSON')) {
-        errorMessage = 'AI service returned invalid data. Please try simplifying your description.';
-      } else if (lastError.message.includes('quality') || lastError.message.includes('validation')) {
-        errorMessage = 'AI service had trouble understanding your request. Please try rephrasing your description.';
-      }
-    }
-    
-    throw new Error(errorMessage);
+    return userStories;
   }
 
-  private async cleanupExistingData(projectId: string): Promise<void> {
-    try {
-      // First, get all features for this project
-      const { data: existingFeatures, error: featuresError } = await supabase
-        .from('features')
-        .select('id')
-        .eq('project_id', projectId);
-
-      if (featuresError) throw featuresError;
-
-      if (existingFeatures && existingFeatures.length > 0) {
-        const featureIds = existingFeatures.map(f => f.id);
-
-        // Delete user stories first (due to foreign key constraints)
-        const { error: storiesError } = await supabase
-          .from('user_stories')
-          .delete()
-          .in('feature_id', featureIds);
-
-        if (storiesError) throw storiesError;
-
-        // Delete features
-        const { error: featuresDeleteError } = await supabase
-          .from('features')
-          .delete()
-          .eq('project_id', projectId);
-
-        if (featuresDeleteError) throw featuresDeleteError;
-      }
-
-      // Delete existing execution plans
-      const { error: plansError } = await supabase
-        .from('execution_plans')
-        .delete()
-        .eq('project_id', projectId);
-
-      if (plansError) throw plansError;
-
-      console.log('Successfully cleaned up existing project data');
-    } catch (error) {
-      console.error('Error cleaning up existing data:', error);
-      throw new Error('Failed to clean up existing data before regeneration');
-    }
-  }
-
-  private updateProgress(stage: GenerationProgressData['stage'], progress: number, currentAction: string) {
-    if (this.onProgress) {
-      this.onProgress({ stage, progress, currentAction });
-    }
-  }
-
-  private async createFeaturesWithOrder(projectId: string, aiFeatures: any[]): Promise<Feature[]> {
-    // Sort features to put authentication features first
-    const sortedFeatures = aiFeatures.sort((a, b) => {
-      const aIsAuth = a.category === 'auth' || a.title.toLowerCase().includes('auth') || 
-                     a.title.toLowerCase().includes('login') || a.title.toLowerCase().includes('register');
-      const bIsAuth = b.category === 'auth' || b.title.toLowerCase().includes('auth') || 
-                     b.title.toLowerCase().includes('login') || b.title.toLowerCase().includes('register');
-      
-      if (aIsAuth && !bIsAuth) return -1;
-      if (!aIsAuth && bIsAuth) return 1;
-      
-      // Then sort by priority
-      const priorityOrder = { high: 0, medium: 1, low: 2 };
-      return priorityOrder[a.priority as keyof typeof priorityOrder] - priorityOrder[b.priority as keyof typeof priorityOrder];
-    });
-
-    const features = sortedFeatures.map((f, index) => ({
-      project_id: projectId,
-      title: f.title,
-      description: f.description,
-      priority: f.priority || 'medium',
-      category: f.category || 'core',
-      complexity: f.complexity || 'medium',
-      estimated_hours: f.estimatedHours || 8,
-      execution_order: index + 1,
-      metadata: {
-        generated_by_ai: true,
-        generation_timestamp: new Date().toISOString(),
-        enhanced_generation: true
-      }
-    }));
-
-    const { data, error } = await supabase
-      .from('features')
-      .insert(features)
-      .select();
-
-    if (error) throw error;
-    return data;
-  }
-
-  private async createUserStoriesWithDependencies(features: Feature[], aiUserStories: any[]): Promise<UserStory[]> {
-    const userStories = [];
+  private generateExecutionPlan(features: any[], userStories: any[]) {
+    const sortedStories = [...userStories].sort((a, b) => (a.execution_order || 0) - (b.execution_order || 0));
+    const executionOrder = sortedStories.map(story => story.title);
     
-    for (const story of aiUserStories) {
-      const matchingFeature = features.find(f => f.title === story.featureTitle);
-      if (matchingFeature) {
-        // Ensure dependencies are properly structured
-        let dependencies = story.dependencies || [];
-        
-        // Validate and fix dependency structure
-        dependencies = dependencies.filter((dep: any) => 
-          dep && dep.targetStoryTitle && dep.type && dep.reason
-        );
-
-        userStories.push({
-          feature_id: matchingFeature.id,
-          title: story.title,
-          description: story.description,
-          acceptance_criteria: story.acceptanceCriteria || [],
-          priority: story.priority || 'medium',
-          complexity: story.complexity || 'medium',
-          estimated_hours: story.estimatedHours || 4,
-          dependencies: dependencies as Json,
-          status: 'draft'
-        });
-      }
-    }
-
-    if (userStories.length === 0) return [];
-
-    const { data, error } = await supabase
-      .from('user_stories')
-      .insert(userStories)
-      .select();
-
-    if (error) throw error;
-    return data;
-  }
-
-  private async calculateExecutionOrder(projectId: string, userStories: UserStory[]): Promise<ExecutionPlan> {
-    const storyMap = new Map(userStories.map(s => [s.title, s]));
-    const visited = new Set<string>();
-    const visiting = new Set<string>();
-    const order: string[] = [];
-
-    const visit = (storyTitle: string) => {
-      if (visiting.has(storyTitle)) {
-        console.warn(`Circular dependency detected involving: ${storyTitle}, skipping...`);
-        return;
-      }
-      if (visited.has(storyTitle)) return;
-
-      visiting.add(storyTitle);
-      
-      const story = storyMap.get(storyTitle);
-      if (story?.dependencies) {
-        try {
-          const deps = story.dependencies as unknown as Dependency[];
-          for (const dep of deps) {
-            if (dep && dep.type === 'must_do_first' && dep.targetStoryTitle) {
-              if (storyMap.has(dep.targetStoryTitle)) {
-                visit(dep.targetStoryTitle);
-              }
-            }
-          }
-        } catch (e) {
-          console.warn(`Error processing dependencies for ${storyTitle}:`, e);
-        }
-      }
-      
-      visiting.delete(storyTitle);
-      visited.add(storyTitle);
-      order.push(storyTitle);
-    };
-
-    // Visit all stories
-    for (const story of userStories) {
-      visit(story.title);
-    }
-
-    // Update execution order in database
-    for (let i = 0; i < order.length; i++) {
-      const story = storyMap.get(order[i]);
-      if (story) {
-        await supabase
-          .from('user_stories')
-          .update({ execution_order: i + 1 })
-          .eq('id', story.id);
-      }
-    }
-
-    const phases = this.groupIntoPhases(order, storyMap);
-    const totalHours = userStories.reduce((sum, s) => sum + (s.estimated_hours || 0), 0);
-
-    const phasesJson = phases.map(phase => ({
-      number: phase.number,
-      name: phase.name,
-      stories: phase.stories,
-      estimatedHours: phase.estimatedHours
-    })) as Json;
-
-    const { data: planData, error } = await supabase
-      .from('execution_plans')
-      .insert({
-        project_id: projectId,
-        total_stories: userStories.length,
-        estimated_total_hours: totalHours,
-        phases: phasesJson
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    return {
-      id: planData.id,
-      totalStories: userStories.length,
-      executionOrder: order,
-      estimatedTotalHours: totalHours,
-      phases: phases
-    };
-  }
-
-  private groupIntoPhases(order: string[], storyMap: Map<string, UserStory>): Phase[] {
-    const phases: Phase[] = [];
-    let currentPhase: string[] = [];
-    let phaseHours = 0;
-    let phaseNumber = 1;
+    // Group stories into logical phases
+    const phases = [];
+    const storiesPerPhase = Math.ceil(sortedStories.length / 3);
     
-    // Create meaningful phase names based on content
-    const getPhaseNameForStories = (stories: string[], phaseNum: number): string => {
-      const authStories = stories.filter(title => 
-        title.toLowerCase().includes('register') ||
-        title.toLowerCase().includes('login') ||
-        title.toLowerCase().includes('auth') ||
-        title.toLowerCase().includes('password')
-      );
+    for (let i = 0; i < sortedStories.length; i += storiesPerPhase) {
+      const phaseStories = sortedStories.slice(i, i + storiesPerPhase);
+      const phaseNumber = Math.floor(i / storiesPerPhase) + 1;
       
-      if (authStories.length > stories.length * 0.6) {
-        return 'Phase 1: Authentication & User Management';
-      } else if (phaseNum === 2) {
-        return 'Phase 2: Core Features';
-      } else if (phaseNum === 3) {
-        return 'Phase 3: Advanced Features';
-      } else {
-        return `Phase ${phaseNum}: Additional Features`;
-      }
-    };
-    
-    for (const storyTitle of order) {
-      const story = storyMap.get(storyTitle);
-      if (!story) continue;
-      
-      // Start new phase if current phase is getting too big (30+ hours) or we have too many stories
-      if ((phaseHours > 30 && currentPhase.length > 0) || currentPhase.length >= 8) {
-        phases.push({
-          number: phaseNumber,
-          name: getPhaseNameForStories(currentPhase, phaseNumber),
-          stories: [...currentPhase],
-          estimatedHours: phaseHours
-        });
-        currentPhase = [];
-        phaseHours = 0;
-        phaseNumber++;
-      }
-      
-      currentPhase.push(storyTitle);
-      phaseHours += story.estimated_hours || 0;
-    }
-    
-    // Add final phase
-    if (currentPhase.length > 0) {
       phases.push({
         number: phaseNumber,
-        name: getPhaseNameForStories(currentPhase, phaseNumber),
-        stories: currentPhase,
-        estimatedHours: phaseHours
+        name: `Phase ${phaseNumber}: ${this.getPhaseNameFromStories(phaseStories)}`,
+        stories: phaseStories.map(s => s.title),
+        estimatedHours: phaseStories.reduce((sum, s) => sum + (s.estimated_hours || 4), 0)
       });
     }
+
+    const estimatedTotalHours = userStories.reduce((sum, story) => sum + (story.estimated_hours || 4), 0);
+
+    return {
+      phases,
+      executionOrder,
+      estimatedTotalHours
+    };
+  }
+
+  private getPhaseNameFromStories(stories: any[]): string {
+    const authStories = stories.filter(s => 
+      s.title.toLowerCase().includes('auth') || 
+      s.title.toLowerCase().includes('login') || 
+      s.title.toLowerCase().includes('register')
+    );
     
-    return phases;
+    if (authStories.length > 0) {
+      return 'Authentication & Foundation';
+    }
+    
+    const coreStories = stories.filter(s => s.priority === 'high');
+    if (coreStories.length > stories.length / 2) {
+      return 'Core Features';
+    }
+    
+    return 'Advanced Features';
   }
 }
