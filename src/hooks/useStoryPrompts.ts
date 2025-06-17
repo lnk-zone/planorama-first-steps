@@ -105,8 +105,8 @@ export const useStoryPrompts = (projectId: string, platform: string) => {
       queryClient.invalidateQueries({ queryKey: ['story-prompts', projectId, platform] });
       queryClient.invalidateQueries({ queryKey: ['troubleshooting-guide', projectId, platform] });
       toast({
-        title: "Prompts generated successfully",
-        description: "Your user story prompts are ready to use.",
+        title: "AI Builder prompts generated successfully",
+        description: "Your comprehensive user story prompts are ready to use with any AI builder.",
       });
     },
     onError: (error) => {

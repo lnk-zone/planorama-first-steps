@@ -22,7 +22,7 @@ serve(async (req) => {
     }
 
     const { projectId, platform } = await req.json();
-    console.log('Generating prompts for project:', projectId, 'platform:', platform);
+    console.log('Generating enhanced prompts for project:', projectId, 'platform:', platform);
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -35,9 +35,9 @@ serve(async (req) => {
       phasesCount: projectData.executionPlan?.phases?.length || 0
     });
     
-    // Generate prompts
-    const prompts = await generateUserStoryPrompts(projectData, platform);
-    console.log('Generated prompts:', {
+    // Generate enhanced prompts
+    const prompts = await generateEnhancedUserStoryPrompts(projectData, platform);
+    console.log('Generated enhanced prompts:', {
       phaseOverviews: prompts.phaseOverviews.length,
       storyPrompts: prompts.storyPrompts.length,
       transitionPrompts: prompts.transitionPrompts.length,
@@ -133,11 +133,11 @@ async function gatherProjectDataWithOrder(supabase: any, projectId: string) {
   };
 }
 
-async function generateUserStoryPrompts(projectData: any, platform: string) {
+async function generateEnhancedUserStoryPrompts(projectData: any, platform: string) {
   const userStories = (projectData.userStories || []).sort((a: any, b: any) => (a.execution_order || 999) - (b.execution_order || 999));
   const phases = projectData.executionPlan?.phases || [];
   
-  console.log('Generating prompts for', userStories.length, 'user stories and', phases.length, 'phases');
+  console.log('Generating enhanced prompts for', userStories.length, 'user stories and', phases.length, 'phases');
   
   const prompts: any = {
     phaseOverviews: [],
@@ -168,14 +168,14 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
 
   console.log('Phase mapping complete. Total mappings:', storyToPhaseMap.size);
 
-  // Generate phase overview prompts
+  // Generate enhanced phase overview prompts
   if (phases.length > 0) {
     for (let i = 0; i < phases.length; i++) {
       const phase = phases[i];
       const phaseStories = getStoriesForPhaseByTitle(userStories, phase);
       console.log(`Phase ${i + 1} "${phase.name}" mapped stories:`, phaseStories.length, 'out of', phase.stories?.length || 0, 'expected');
       
-      const phaseOverview = generatePhaseOverviewPrompt(phase, phaseStories, projectData, platform, i + 1);
+      const phaseOverview = generateEnhancedPhaseOverviewPrompt(phase, phaseStories, projectData, platform, i + 1);
       prompts.phaseOverviews.push(phaseOverview);
     }
   } else if (userStories.length > 0) {
@@ -186,11 +186,11 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
       description: 'Complete all user stories for this project',
       stories: userStories.map((story: any) => story.title)
     };
-    const phaseOverview = generatePhaseOverviewPrompt(singlePhase, userStories, projectData, platform, 1);
+    const phaseOverview = generateEnhancedPhaseOverviewPrompt(singlePhase, userStories, projectData, platform, 1);
     prompts.phaseOverviews.push(phaseOverview);
   }
 
-  // Generate individual story prompts with correct phase assignment
+  // Generate enhanced individual story prompts with correct phase assignment
   for (let i = 0; i < userStories.length; i++) {
     const story = userStories[i];
     const previousStories = userStories.slice(0, i);
@@ -245,12 +245,12 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
     
     console.log(`Final assignment: Story "${story.title}" -> Phase ${storyPhase}`);
     
-    const storyPrompt = generateStoryPrompt(story, previousStories, nextStory, projectData, platform, storyPhase);
+    const storyPrompt = generateEnhancedStoryPrompt(story, previousStories, nextStory, projectData, platform, storyPhase);
     prompts.storyPrompts.push(storyPrompt);
 
     // Generate transition prompt to next story
     if (nextStory) {
-      const transitionPrompt = generateTransitionPrompt(story, nextStory, platform, storyPhase);
+      const transitionPrompt = generateEnhancedTransitionPrompt(story, nextStory, platform, storyPhase);
       prompts.transitionPrompts.push(transitionPrompt);
     }
   }
@@ -263,7 +263,7 @@ async function generateUserStoryPrompts(projectData: any, platform: string) {
   // Generate comprehensive troubleshooting guide
   if (openAIApiKey) {
     try {
-      prompts.troubleshootingGuide = await generateTroubleshootingGuide(projectData, platform);
+      prompts.troubleshootingGuide = await generateEnhancedTroubleshootingGuide(projectData, platform);
     } catch (error) {
       console.error('Error generating troubleshooting guide:', error);
       // Continue without troubleshooting guide if AI generation fails
@@ -301,19 +301,19 @@ function getStoriesForPhaseByTitle(userStories: any[], phase: any) {
   return mappedStories;
 }
 
-function generatePhaseOverviewPrompt(phase: any, phaseStories: any[], projectData: any, platform: string, phaseNumber: number) {
+function generateEnhancedPhaseOverviewPrompt(phase: any, phaseStories: any[], projectData: any, platform: string, phaseNumber: number) {
   const estimatedHours = phaseStories.reduce((sum, story) => sum + (story.estimated_hours || 4), 0);
   
   return {
     id: `phase-${phaseNumber}`,
     title: `Phase ${phaseNumber} Overview: ${phase.name || 'Development Phase'}`,
-    content: buildPhaseOverviewContent(phase, phaseStories, projectData, platform, estimatedHours),
+    content: buildEnhancedPhaseOverviewContent(phase, phaseStories, projectData, platform, estimatedHours),
     phaseNumber: phaseNumber,
     platform
   };
 }
 
-function buildPhaseOverviewContent(phase: any, phaseStories: any[], projectData: any, platform: string, estimatedHours: number): string {
+function buildEnhancedPhaseOverviewContent(phase: any, phaseStories: any[], projectData: any, platform: string, estimatedHours: number): string {
   const storyList = phaseStories.length > 0 
     ? phaseStories.map((story: any, i: number) => `${i + 1}. **${story.title}** - ${story.description || 'Complete this user story'}`).join('\n')
     : 'No user stories mapped to this phase';
@@ -321,50 +321,78 @@ function buildPhaseOverviewContent(phase: any, phaseStories: any[], projectData:
   return `
 # PHASE ${phase.number || 1} OVERVIEW: ${phase.name || 'Development Phase'}
 
+## 🤖 AI BUILDER CONTEXT
+You are an expert full-stack developer building **${projectData.project?.title || 'this application'}** using modern web technologies. You specialize in creating production-ready, user-friendly applications with clean code architecture.
+
+**Tech Stack:** React with TypeScript, Tailwind CSS, shadcn/ui components, and Supabase for backend services
+
 ## 🎯 PHASE OBJECTIVES
 ${phase.description || 'Complete the user stories in this development phase'}
 
 ## 📋 USER STORIES IN THIS PHASE
 ${storyList}
 
-## 🔧 PLATFORM APPROACH
-${getPlatformApproach(platform)}
+## 🏗️ DEVELOPMENT APPROACH
+**Best Practices to Follow:**
+- Write clean, maintainable TypeScript code with proper type definitions
+- Use Tailwind CSS for all styling with responsive design principles
+- Implement shadcn/ui components for consistent, accessible interface elements
+- Follow React best practices with hooks and proper state management
+- Include comprehensive error handling and loading states
+- Add proper form validation and user feedback
+- Ensure accessibility standards are met (ARIA labels, keyboard navigation)
+- Write modular, reusable components
+
+**Security & Quality Standards:**
+- Never expose sensitive data or API keys in frontend code
+- Implement proper input validation and sanitization
+- Use Supabase Row Level Security (RLS) for data protection
+- Include proper error boundaries and fallback UI
+- Test all user interactions and edge cases
+- Ensure responsive design works on mobile and desktop
 
 ## ⏱️ ESTIMATED TIME
-**Total Phase Time:** ${estimatedHours} AI builder hours
+**Total Phase Time:** ${estimatedHours} development hours
 **Stories Count:** ${phaseStories.length} user stories
+**Average per Story:** ${phaseStories.length > 0 ? Math.ceil(estimatedHours / phaseStories.length) : 4} hours
 
-## 🚀 GETTING STARTED
-1. Review all user stories in this phase below
-2. Set up your development environment if not already done
-3. Start with the first story in execution order
-4. Test each feature thoroughly before moving to the next
-5. Mark stories as complete as you finish them
+## 🚀 PHASE WORKFLOW
+1. **Setup & Review** - Understand existing codebase structure and dependencies
+2. **Story Implementation** - Work through stories in the specified execution order
+3. **Integration Testing** - Ensure new features work with existing functionality
+4. **Quality Assurance** - Verify all acceptance criteria and test edge cases
+5. **Code Review** - Check for best practices, security, and maintainability
+6. **User Testing** - Validate user experience and accessibility
 
 ## 📈 SUCCESS CRITERIA
-- All user stories in this phase are fully functional
-- UI is responsive and works on mobile and desktop
-- Code is clean and well-documented
-- No console errors or warnings
-- All acceptance criteria are met for each story
+**Phase Completion Requirements:**
+- ✅ All user stories fully functional with no console errors
+- ✅ UI is responsive and works on mobile and desktop
+- ✅ All forms include proper validation and error handling
+- ✅ Loading states are implemented for async operations
+- ✅ Code is well-organized with reusable components
+- ✅ Security best practices are followed
+- ✅ All acceptance criteria met for each story
+- ✅ Integration with existing features works seamlessly
 
-## 🔄 WORKFLOW
-1. **Read the story prompt** - Understand requirements and acceptance criteria
-2. **Plan your approach** - Break down the story into smaller tasks
-3. **Implement incrementally** - Build and test as you go
-4. **Verify completion** - Check all acceptance criteria
-5. **Mark as done** - Use the completion tracking
-6. **Move to next story** - Follow the execution order
+## 🔄 IMPLEMENTATION WORKFLOW
+**For Each User Story:**
+1. **Read the detailed prompt** - Understand all requirements and acceptance criteria
+2. **Plan your implementation** - Break down into smaller, manageable tasks
+3. **Code incrementally** - Build and test as you implement each piece
+4. **Test thoroughly** - Verify all functionality and edge cases
+5. **Refine and polish** - Ensure code quality and user experience
+6. **Mark as complete** - Use the completion tracking system
 
-Ready to begin this phase! Start with the first user story below.
+**Ready to begin Phase ${phase.number || 1}!** Start with the first user story and work through them systematically. Each story prompt contains comprehensive implementation guidance.
   `.trim();
 }
 
-function generateStoryPrompt(story: any, previousStories: any[], nextStory: any, projectData: any, platform: string, phaseNumber: number = 1) {
+function generateEnhancedStoryPrompt(story: any, previousStories: any[], nextStory: any, projectData: any, platform: string, phaseNumber: number = 1) {
   return {
     id: story.id,
     title: `Story ${story.execution_order || 1}: ${story.title}`,
-    content: buildStoryPromptContent(story, previousStories, nextStory, projectData, platform),
+    content: buildEnhancedStoryPromptContent(story, previousStories, nextStory, projectData, platform),
     executionOrder: story.execution_order || 1,
     platform,
     phaseNumber, // CRITICAL: This must be set correctly
@@ -374,7 +402,7 @@ function generateStoryPrompt(story: any, previousStories: any[], nextStory: any,
   };
 }
 
-function buildStoryPromptContent(story: any, previousStories: any[], nextStory: any, projectData: any, platform: string): string {
+function buildEnhancedStoryPromptContent(story: any, previousStories: any[], nextStory: any, projectData: any, platform: string): string {
   const previousStoriesList = previousStories.length > 0 
     ? previousStories.map((s: any, i: number) => `${i + 1}. ${s.title} ✅`).join('\n')
     : 'This is the first story in your project';
@@ -387,24 +415,30 @@ function buildStoryPromptContent(story: any, previousStories: any[], nextStory: 
 
   const acceptanceCriteria = story.acceptance_criteria?.length > 0 
     ? story.acceptance_criteria.map((criteria: string, i: number) => `${i + 1}. ${criteria}`).join('\n')
-    : '1. Feature works as described\n2. UI is responsive and user-friendly\n3. No console errors or warnings';
+    : '1. Feature works as described with no console errors\n2. UI is responsive and accessible on mobile and desktop\n3. Proper loading states and error handling implemented\n4. Code is clean, well-organized, and follows best practices';
 
   const acceptanceCriteriaChecklist = story.acceptance_criteria?.length > 0 
-    ? story.acceptance_criteria.map((criteria: string) => `✅ ${criteria}`).join('\n')
-    : '✅ Feature works as described\n✅ UI is responsive and user-friendly\n✅ No console errors or warnings\n✅ Code is clean and well-organized';
-
-  const testingSteps = story.acceptance_criteria?.length > 0 
-    ? story.acceptance_criteria.map((criteria: string, i: number) => `${i + 1}. Test: ${criteria}`).join('\n')
-    : '1. Test core functionality\n2. Test responsive design\n3. Test error handling';
+    ? story.acceptance_criteria.map((criteria: string) => `□ ${criteria}`).join('\n')
+    : '□ Feature works as described with no console errors\n□ UI is responsive and accessible on mobile and desktop\n□ Proper loading states and error handling implemented\n□ Code is clean, well-organized, and follows best practices\n□ All user interactions provide appropriate feedback\n□ Form validation (if applicable) works correctly';
 
   return `
 # STORY ${story.execution_order || 1}: ${story.title}
 
-## 📋 CONTEXT
-We are building **${projectData.project?.title || 'this application'}**: ${projectData.project?.description || 'A comprehensive web application'}
+## 🤖 AI BUILDER INSTRUCTIONS
+You are an expert full-stack developer building **${projectData.project?.title || 'this application'}**. Create production-ready, fully functional code that follows modern web development best practices.
+
+**Tech Stack Requirements:**
+- **Frontend:** React 18+ with TypeScript, Tailwind CSS for styling, shadcn/ui components
+- **Backend:** Supabase for database, authentication, and API functionality
+- **Code Quality:** Clean, maintainable code with proper TypeScript types
+- **UI/UX:** Responsive design, accessible components, smooth user interactions
+
+## 📋 PROJECT CONTEXT
+**Application:** ${projectData.project?.title || 'Web Application'}
+**Description:** ${projectData.project?.description || 'A comprehensive web application'}
 
 ${previousStories.length > 0 ? `
-**WHAT WE'VE BUILT SO FAR:**
+**IMPLEMENTED FEATURES:**
 ${previousStoriesList}
 ` : '**STARTING POINT:** This is your first user story - time to begin building!'}
 
@@ -413,120 +447,212 @@ ${dependenciesList ? `
 ${dependenciesList}
 ` : ''}
 
-**CURRENT FOCUS:** ${story.description || 'Implement this user story functionality'}
+## 🎯 CURRENT TASK
+**User Story:** ${story.title}
+**Description:** ${story.description || 'Implement this user story functionality according to the requirements below'}
 
-## 🎯 TASK
-**${story.title}**
+## 📝 DETAILED REQUIREMENTS
 
-**DESCRIPTION:** ${story.description || 'Complete this user story according to the acceptance criteria below'}
-
-${getPlatformApproach(platform)}
-
-## 📝 REQUIREMENTS
-
-**FUNCTIONAL REQUIREMENTS:**
+### Functional Requirements
 ${acceptanceCriteria}
 
-**TECHNICAL REQUIREMENTS:**
-${getTechnicalRequirements(platform)}
+### Technical Implementation Standards
+- **Code Quality:** Write clean, readable TypeScript with proper type definitions
+- **Component Structure:** Create focused, reusable React components with clear props interfaces
+- **Styling:** Use Tailwind CSS utility classes for all styling with responsive design
+- **UI Components:** Utilize shadcn/ui components for consistent, accessible interface elements
+- **State Management:** Use React hooks (useState, useEffect, etc.) appropriately
+- **Error Handling:** Implement comprehensive error boundaries and user-friendly error messages
+- **Loading States:** Show appropriate loading indicators for async operations
+- **Form Validation:** Include real-time validation with clear error messages (if forms are involved)
+- **Data Management:** Use Supabase client for all database operations with proper error handling
 
-**QUALITY REQUIREMENTS:**
-- Code should be readable and well-commented
-- UI should be intuitive and user-friendly
-- Functionality should work as expected
-- No console errors or warnings
-- Follow established project patterns
+### Security & Best Practices
+- **Input Validation:** Sanitize and validate all user inputs
+- **Authentication:** Integrate with Supabase Auth if user management is required
+- **Data Security:** Use Supabase Row Level Security (RLS) policies for data protection
+- **API Security:** Never expose sensitive keys or tokens in frontend code
+- **Accessibility:** Include proper ARIA labels, keyboard navigation, and screen reader support
+- **Performance:** Optimize for fast loading and smooth interactions
 
-## ✅ ACCEPTANCE CRITERIA
+### UI/UX Requirements
+- **Responsive Design:** Ensure functionality works perfectly on mobile, tablet, and desktop
+- **Visual Consistency:** Follow established design patterns and color schemes
+- **User Feedback:** Provide clear feedback for all user actions (success, error, loading states)
+- **Intuitive Interface:** Design for ease of use with clear navigation and labels
+- **Accessibility:** Meet WCAG 2.1 AA standards for accessibility
 
-**DEFINITION OF DONE:**
+## ✅ ACCEPTANCE CRITERIA CHECKLIST
+
+**Definition of Done:**
 ${acceptanceCriteriaChecklist}
 
-**TESTING CHECKLIST:**
-□ Manual testing completed
-□ Responsive design verified (mobile & desktop)
-□ Error handling tested
-□ Integration with existing features verified
-□ All acceptance criteria validated
+**Quality Assurance Checklist:**
+□ No console errors or warnings in browser developer tools
+□ All TypeScript types are properly defined with no 'any' types
+□ Component props have proper TypeScript interfaces
+□ Responsive design tested on mobile, tablet, and desktop viewports
+□ All interactive elements are accessible via keyboard navigation
+□ Loading states are implemented for all async operations
+□ Error handling provides user-friendly messages
+□ Form validation (if applicable) provides real-time feedback
+□ All Supabase operations include proper error handling
+□ Code is well-commented and follows consistent formatting
 
-## 🔧 IMPLEMENTATION GUIDANCE
+## 🔧 IMPLEMENTATION APPROACH
 
-**STEP-BY-STEP APPROACH:**
-${getImplementationSteps(story, platform)}
+### Step-by-Step Development Process
+1. **Plan Component Architecture**
+   - Identify the main components needed
+   - Design the data flow and state management
+   - Plan the file structure and component organization
 
-**BEST PRACTICES:**
-- Start with the simplest implementation that works
-- Test each piece as you build it
-- Add error handling and loading states
-- Keep components focused and reusable
-- Follow the existing code structure and patterns
+2. **Implement Core Functionality**
+   - Add the main business logic
+   - Implement data fetching/saving if needed
+   - Handle user interactions and events
+
+3. **Build User Interface**
+   - Apply appropriate styling (Tailwind/CSS)
+   - Ensure responsive design works properly
+   - Add loading and error states
+
+4. **Add Interactivity & Validation**
+   - Implement form handling with validation (if applicable)
+   - Add loading states and error handling
+   - Include user feedback for all actions
+
+5. **Test & Refine**
+   - Test all functionality thoroughly
+   - Check for edge cases and error scenarios
+   - Verify integration with existing features
+
+### Code Organization Guidelines
+- Create separate files for different components
+- Use descriptive names for components, functions, and variables
+- Group related functionality together
+- Keep components focused on a single responsibility
+- Extract reusable logic into custom hooks when appropriate
 
 ## 🧪 TESTING & VALIDATION
 
-**MANUAL TESTING STEPS:**
-${testingSteps}
+### Manual Testing Steps
+1. **Functionality Testing**
+   - Test all features work as expected
+   - Verify edge cases and error scenarios
+   - Check data persistence (if applicable)
 
-**VERIFICATION CHECKLIST:**
-□ Feature works in desktop browser
-□ Feature works on mobile devices
-□ Error states are handled gracefully
-□ Loading states are shown when appropriate
-□ Data persists correctly (if applicable)
-□ Integration with other features works
-□ No broken existing functionality
+2. **Responsive Design Testing**
+   - Test on mobile devices (320px+ width)
+   - Test on tablets (768px+ width)
+   - Test on desktop screens (1024px+ width)
 
-## ➡️ NEXT STEPS
+3. **Accessibility Testing**
+   - Navigate using only keyboard (Tab, Enter, Space, Arrow keys)
+   - Test with screen reader software
+   - Verify color contrast meets accessibility standards
 
-**COMPLETION CHECKLIST:**
-□ All acceptance criteria met
-□ Manual testing completed
-□ Code is clean and commented
-□ No console errors or warnings
-□ Story marked as complete in tracker
+4. **Performance Testing**
+   - Check page load times
+   - Verify smooth animations and transitions
+   - Test with slow network connections
+
+### Browser Developer Tools Verification
+□ No errors in Console tab
+□ No TypeScript errors in editor
+□ Network tab shows successful API calls
+□ Elements tab shows proper HTML structure
+□ Lighthouse score shows good performance and accessibility
+
+## ➡️ COMPLETION & NEXT STEPS
+
+**Before Marking Complete:**
+□ All acceptance criteria verified and working
+□ Code is clean, commented, and follows best practices
+□ Manual testing completed successfully
+□ No console errors or TypeScript warnings
+□ Responsive design confirmed on all screen sizes
+□ Accessibility requirements met
 
 ${nextStory ? `
-**NEXT STORY:** Story ${nextStory.execution_order || 'Next'}
+**Next Story Preview:** Story ${nextStory.execution_order || 'Next'}
 "${nextStory.title}"
-Preview: ${nextStory.description || 'Continue with the next user story'}
+${nextStory.description ? `Description: ${nextStory.description}` : ''}
 ` : `
 🎉 **CONGRATULATIONS!**
 You've completed all user stories for this project!
-Time to test the complete application end-to-end and deploy.
+Time to perform end-to-end testing and prepare for deployment.
 `}
 
-${getPlatformSpecificFooter(platform)}
+## 📚 ADDITIONAL RESOURCES
+
+**Key Documentation:**
+- [React TypeScript Best Practices](https://react-typescript-cheatsheet.netlify.app/)
+- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
+- [shadcn/ui Components](https://ui.shadcn.com/docs)
+- [Supabase JavaScript Guide](https://supabase.com/docs/reference/javascript)
+
+**Development Tools:**
+- Use browser developer tools (F12) for debugging
+- Leverage TypeScript compiler for type checking
+- Use React Developer Tools extension for component debugging
+- Test accessibility with axe-core browser extension
+
+---
+
+**🚀 Ready to implement this story!** Follow the step-by-step approach above and create production-ready code that meets all requirements. Focus on quality, accessibility, and user experience.
   `.trim();
 }
 
-function generateTransitionPrompt(story: any, nextStory: any, platform: string, phaseNumber: number = 1) {
+function generateEnhancedTransitionPrompt(story: any, nextStory: any, platform: string, phaseNumber: number = 1) {
   return {
     id: `transition-${story.id}-${nextStory.id}`,
     title: `Transition: ${story.title} → ${nextStory.title}`,
     content: `
-# 🔄 TRANSITION CHECKPOINT
+# 🔄 DEVELOPMENT CHECKPOINT
 
-## ✅ JUST COMPLETED
-**Story ${story.execution_order || 'Previous'}:** ${story.title}
+## ✅ STORY COMPLETED
+**Just Finished:** Story ${story.execution_order || 'Previous'} - ${story.title}
 
-**Verify that:**
-□ All acceptance criteria are met
-□ Feature is fully tested
-□ No console errors or warnings
-□ Code is clean and committed/saved
-□ Story is marked as complete
+### Final Verification Checklist
+Before proceeding to the next story, ensure you have completed:
 
-## ➡️ NEXT UP
-**Story ${nextStory.execution_order || 'Next'}:** ${nextStory.title}
+□ **Functionality:** All features work as expected with no bugs
+□ **Code Quality:** Clean, well-organized TypeScript code with proper types
+□ **UI/UX:** Responsive design works on mobile, tablet, and desktop
+□ **Testing:** Manual testing completed for all user scenarios
+□ **Error Handling:** Proper error states and user feedback implemented
+□ **Accessibility:** Keyboard navigation and screen reader compatibility verified
+□ **Performance:** No console errors or warnings in browser developer tools
+□ **Integration:** New features work seamlessly with existing functionality
+□ **Documentation:** Code is properly commented and self-documenting
 
-**Before starting:**
-□ Take a short break if needed
-□ Review the next story requirements carefully
-□ Ensure your development environment is ready
-□ Save/commit your current progress
+### Success Indicators
+✅ **No console errors or TypeScript warnings**
+✅ **All acceptance criteria met and verified**
+✅ **Responsive design tested across different screen sizes**
+✅ **User interactions provide appropriate feedback**
+✅ **Code follows established patterns and best practices**
 
-**Preview:** ${nextStory.description || 'Ready to tackle the next user story'}
+## ➡️ NEXT STORY PREPARATION
+**Coming Up:** Story ${nextStory.execution_order || 'Next'} - ${nextStory.title}
 
-Ready to continue building! 🚀
+### Before Starting the Next Story
+□ **Save Progress:** Ensure all changes are saved/committed
+□ **Clear Console:** Start with a clean browser console
+□ **Review Context:** Understand how the next story builds on current progress
+□ **Environment Check:** Verify development environment is ready
+□ **Take a Break:** Consider a short break if needed for mental clarity
+
+### Preview of Next Story
+**Title:** ${nextStory.title}
+**Expected Work:** ${nextStory.description || 'Continue building the application with the next user story'}
+
+This story will build upon the foundation you've just created. Review the detailed prompt for comprehensive implementation guidance.
+
+---
+
+**🚀 Excellent Progress!** You've successfully completed another story. The application is growing stronger with each implementation. Ready to continue building!
     `.trim(),
     executionOrder: Math.floor((story.execution_order || 0) * 1000) + 500,
     platform,
@@ -534,8 +660,8 @@ Ready to continue building! 🚀
   };
 }
 
-async function generateTroubleshootingGuide(projectData: any, platform: string) {
-  const prompt = buildTroubleshootingPrompt(projectData, platform);
+async function generateEnhancedTroubleshootingGuide(projectData: any, platform: string) {
+  const prompt = buildEnhancedTroubleshootingPrompt(projectData, platform);
   
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -548,14 +674,14 @@ async function generateTroubleshootingGuide(projectData: any, platform: string) 
       messages: [
         {
           role: 'system',
-          content: 'You are an expert developer who helps non-technical users troubleshoot issues with AI app builders. Create comprehensive, practical troubleshooting guidance.'
+          content: 'You are an expert developer who helps users troubleshoot issues with AI app builders. Create comprehensive, practical troubleshooting guidance that is immediately actionable.'
         },
         {
           role: 'user',
           content: prompt
         }
       ],
-      max_tokens: 6000,
+      max_tokens: 8000,
       temperature: 0.2
     }),
   });
@@ -571,251 +697,219 @@ async function generateTroubleshootingGuide(projectData: any, platform: string) 
   };
 }
 
-function buildTroubleshootingPrompt(projectData: any, platform: string): string {
+function buildEnhancedTroubleshootingPrompt(projectData: any, platform: string): string {
   const featuresList = projectData.features?.map((f: any) => f.title).join(', ') || 'Various features';
   
   return `
-Create a comprehensive troubleshooting guide for this project:
+Create a comprehensive troubleshooting guide for AI-assisted development of this project:
 
 PROJECT: ${projectData.project?.title || 'Web Application'}
-PLATFORM: ${platform}
 FEATURES: ${featuresList}
 USER STORIES: ${projectData.userStories?.length || 0} total stories
+TECH STACK: React, TypeScript, Tailwind CSS, shadcn/ui, Supabase
 
 Generate a practical troubleshooting guide with these sections:
 
-## 🔧 GENERAL TROUBLESHOOTING
+## 🔧 COMMON DEVELOPMENT ISSUES
 
-### Common Issues Across All Stories
-1. **Feature not working as expected**
-   - Symptoms and causes
-   - Step-by-step debugging process
-   - Common solutions
+### Code Generation Problems
+1. **AI Builder Not Following Instructions**
+   - Symptoms: Generated code doesn't match requirements
+   - Root Causes: Unclear prompts, missing context, ambiguous requirements
+   - Solutions: Be more specific, provide examples, break down complex requests
 
-2. **Styling and layout problems**
-   - Responsive design issues
-   - CSS conflicts
-   - Component styling problems
+2. **TypeScript Errors and Type Issues**
+   - Symptoms: Red squiggly lines, compilation errors, 'any' types everywhere
+   - Root Causes: Missing type definitions, incorrect imports, incompatible versions
+   - Solutions: Step-by-step type debugging, proper interface definitions
 
-3. **Data not saving or loading**
-   - Database connection issues
-   - API problems
-   - State management issues
+3. **Component Integration Failures**
+   - Symptoms: Components don't work together, props errors, rendering issues
+   - Root Causes: Mismatched interfaces, incorrect prop passing, state management problems
+   - Solutions: Component architecture best practices, debugging techniques
 
-4. **Integration problems**
-   - Component integration failures
-   - Dependency conflicts
-   - State synchronization issues
+### UI/UX Implementation Issues
+1. **Styling and Layout Problems**
+   - Symptoms: Elements not positioned correctly, responsive design broken
+   - Root Causes: Incorrect Tailwind classes, CSS conflicts, missing responsive prefixes
+   - Solutions: Tailwind debugging techniques, responsive design patterns
 
-## 🎯 PLATFORM-SPECIFIC TROUBLESHOOTING
+2. **shadcn/ui Component Issues**
+   - Symptoms: Components not rendering, styling conflicts, accessibility problems
+   - Root Causes: Incorrect installation, version conflicts, improper usage
+   - Solutions: Component troubleshooting, proper implementation patterns
 
-### ${platform.toUpperCase()} Specific Issues
-${getPlatformSpecificTroubleshooting(platform)}
+### Data Management Problems
+1. **Supabase Integration Issues**
+   - Symptoms: Database calls failing, authentication problems, RLS policy errors
+   - Root Causes: Incorrect configuration, missing permissions, network issues
+   - Solutions: Database debugging, authentication troubleshooting, policy testing
 
-## 🔍 DEBUGGING PROCESS
+2. **State Management Confusion**
+   - Symptoms: UI not updating, stale data, race conditions
+   - Root Causes: Incorrect hook usage, missing dependencies, async handling
+   - Solutions: React hooks best practices, state debugging techniques
 
-### Step-by-Step Debugging
-1. Identify the problem clearly
-2. Check browser console for errors
-3. Verify requirements and acceptance criteria
-4. Test with minimal/simple data first
-5. Check integrations with other components
-6. Review recent changes that might have caused issues
+## 🛠️ DEBUGGING PROCESS
 
-### Tools and Techniques
-- Browser Developer Tools (F12)
-- Console logging for debugging
-- Network tab for API issues
-- React Developer Tools (if applicable)
-- Component inspection
+### Step-by-Step Debugging Methodology
+1. **Identify the Problem Clearly**
+   - What exactly is not working?
+   - When does the problem occur?
+   - What was the expected behavior?
+
+2. **Check Browser Developer Tools**
+   - Console tab: Look for JavaScript errors and warnings
+   - Network tab: Check API calls and responses
+   - Elements tab: Inspect HTML structure and styling
+   - React DevTools: Examine component state and props
+
+3. **Analyze the Code**
+   - Review recent changes that might have caused the issue
+   - Check TypeScript compiler output
+   - Verify import statements and file paths
+   - Examine component props and state management
+
+4. **Test Systematically**
+   - Isolate the problem to a specific component or function
+   - Test with minimal examples
+   - Use console.log statements to trace execution
+   - Test different data inputs and edge cases
+
+5. **Implement and Verify Fix**
+   - Make targeted changes based on findings
+   - Test the fix thoroughly
+   - Ensure no new issues were introduced
+   - Document the solution for future reference
+
+### Essential Debugging Tools
+- **Browser Developer Tools (F12)**
+  - Console: Error messages and custom logging
+  - Network: API call inspection
+  - Elements: DOM structure and CSS debugging
+  - Application: Local storage and session data
+
+- **React Developer Tools**
+  - Component tree inspection
+  - Props and state examination
+  - Performance profiling
+  - Hook debugging
+
+- **TypeScript Compiler**
+  - Type checking and error reporting
+  - Unused code detection
+  - Import/export validation
+
+## 🚨 SPECIFIC ISSUE SOLUTIONS
+
+### TypeScript & React Issues
+**Problem:** "Property 'X' does not exist on type 'Y'"
+**Solution:** Define proper interfaces, check import statements, verify prop types
+
+**Problem:** "Hook called conditionally"
+**Solution:** Ensure hooks are always called in the same order, move conditional logic inside hooks
+
+**Problem:** "Cannot read property of undefined"
+**Solution:** Add null/undefined checks, use optional chaining, provide default values
+
+### Styling & UI Issues
+**Problem:** Styles not applying correctly
+**Solution:** Check Tailwind class names, verify CSS specificity, inspect element styles
+
+**Problem:** Components not responsive
+**Solution:** Use Tailwind responsive prefixes (sm:, md:, lg:, xl:), test on different screen sizes
+
+**Problem:** shadcn/ui components not working
+**Solution:** Verify installation, check component documentation, ensure proper imports
+
+### Supabase & Data Issues
+**Problem:** Database queries failing
+**Solution:** Check RLS policies, verify table permissions, test queries in Supabase dashboard
+
+**Problem:** Authentication not working
+**Solution:** Verify Auth configuration, check redirect URLs, test login flow
+
+**Problem:** Real-time updates not working
+**Solution:** Check subscription setup, verify table permissions, test connection
+
+## 🔍 ADVANCED TROUBLESHOOTING
+
+### Performance Issues
+- Use React Profiler to identify slow components
+- Optimize re-renders with useMemo and useCallback
+- Implement code splitting for large applications
+- Monitor bundle size and loading times
+
+### Accessibility Problems
+- Use axe-core browser extension for automated testing
+- Test keyboard navigation thoroughly
+- Verify screen reader compatibility
+- Check color contrast ratios
+
+### Mobile-Specific Issues
+- Test on actual devices, not just browser simulation
+- Check touch interactions and gestures
+- Verify viewport meta tag configuration
+- Test offline functionality if applicable
 
 ## 🆘 WHEN TO ASK FOR HELP
 
-### Before Asking for Help
-- Try the solutions in this guide first
-- Check the browser console for specific error messages
-- Test with simplified data or isolated components
-- Review the story requirements and acceptance criteria
-- Document what you've already tried
+### Before Seeking Help
+□ Tried all relevant solutions in this guide
+□ Checked official documentation
+□ Searched for similar issues online
+□ Isolated the problem to specific code/components
+□ Prepared clear error messages and code examples
 
 ### How to Ask for Help Effectively
-- Describe clearly what you're trying to achieve
-- Explain step-by-step what you've tried
-- Include specific error messages (copy & paste)
-- Share relevant code snippets if needed
-- Mention which user story you're working on
+1. **Describe the Problem Clearly**
+   - What you're trying to achieve
+   - What actually happens
+   - Error messages (exact text)
+   - Steps to reproduce
+
+2. **Provide Context**
+   - Which user story you're working on
+   - Recent changes made
+   - Browser and device information
+   - Relevant code snippets
+
+3. **Show What You've Tried**
+   - Solutions attempted
+   - Debugging steps taken
+   - Research conducted
+   - Partial progress made
 
 ### Where to Get Help
-- Platform documentation and community
-- Stack Overflow for technical questions
-- GitHub issues for platform-specific problems
-- Discord/Slack communities for real-time help
+- **Official Documentation:** React, TypeScript, Tailwind, Supabase, shadcn/ui
+- **Stack Overflow:** For specific technical questions
+- **GitHub Issues:** For tool-specific problems
+- **Community Discord/Slack:** For real-time assistance
+- **AI Builders:** For code generation and implementation help
 
-## 🔄 ROLLBACK STRATEGIES
+## 🔄 PREVENTION STRATEGIES
 
-### When Things Go Wrong
-1. Don't panic - save your current progress first
-2. Identify the last known working state
-3. Consider reverting to that point if necessary
-4. Try a different, simpler approach
-5. Break the problem into smaller pieces
-6. Ask for guidance on alternative approaches
+### Best Practices to Avoid Issues
+1. **Code Organization**
+   - Keep components small and focused
+   - Use consistent naming conventions
+   - Implement proper error boundaries
+   - Write self-documenting code
 
-### Backup Best Practices
-- Save/commit changes frequently
-- Test thoroughly before moving to next story
-- Keep notes of what works and what doesn't
-- Document successful patterns for reuse
+2. **Testing Strategy**
+   - Test incrementally as you build
+   - Verify functionality before moving to next story
+   - Check responsive design regularly
+   - Test accessibility continuously
 
-Make this guide immediately actionable for non-technical users building their app story by story!
+3. **Version Control**
+   - Commit working code frequently
+   - Use descriptive commit messages
+   - Create branches for experimental features
+   - Keep backup of working versions
+
+Remember: Every developer encounters issues - the key is systematic debugging and continuous learning!
   `.trim();
-}
-
-function getPlatformApproach(platform: string): string {
-  const approaches: { [key: string]: string } = {
-    lovable: `
-**LOVABLE APPROACH:**
-- Use React with TypeScript and Tailwind CSS
-- Implement with shadcn-ui components where appropriate
-- Use Supabase for any backend functionality
-- Follow React best practices and hooks patterns`,
-    bolt: `
-**BOLT APPROACH:**
-- Create clean, modern web application code
-- Use best practices for file organization
-- Implement responsive design principles
-- Focus on user experience and performance`,
-    cursor: `
-**CURSOR APPROACH:**
-- Write clean, well-documented code
-- Use appropriate design patterns
-- Implement proper error handling
-- Follow coding best practices`,
-    claude: `
-**CLAUDE APPROACH:**
-- Focus on clear, maintainable code structure
-- Implement comprehensive error handling
-- Use modern development patterns
-- Prioritize code readability and documentation`,
-    replit: `
-**REPLIT APPROACH:**
-- Build with collaborative development in mind
-- Use environment-specific configurations
-- Implement clean separation of concerns
-- Focus on rapid prototyping and iteration`,
-    windsurf: `
-**WINDSURF APPROACH:**
-- Leverage AI-assisted development workflows
-- Implement efficient code generation patterns
-- Use modern tooling and frameworks
-- Focus on developer productivity`
-  };
-  
-  return approaches[platform] || approaches.lovable;
-}
-
-function getTechnicalRequirements(platform: string): string {
-  const requirements: { [key: string]: string } = {
-    lovable: `
-- Use TypeScript for type safety
-- Implement with Tailwind CSS for styling
-- Use shadcn-ui components when applicable
-- Integrate with Supabase for backend needs
-- Follow React hooks patterns`,
-    bolt: `
-- Use modern JavaScript/TypeScript
-- Implement responsive CSS design
-- Follow component-based architecture
-- Use proper state management
-- Implement error boundaries`,
-    cursor: `
-- Write clean, documented code
-- Use appropriate design patterns
-- Implement proper error handling
-- Follow coding best practices
-- Use modern development tools`
-  };
-  
-  return requirements[platform] || requirements.lovable;
-}
-
-function getImplementationSteps(story: any, platform: string): string {
-  return `
-1. **Plan the Implementation**
-   - Review the acceptance criteria carefully
-   - Identify the main components needed
-   - Plan the data flow and state management
-
-2. **Create the Basic Structure**
-   - Set up the main component files
-   - Create necessary interfaces/types (if using TypeScript)
-   - Implement basic component structure
-
-3. **Implement Core Functionality**
-   - Add the main business logic
-   - Implement data fetching/saving if needed
-   - Handle user interactions and events
-
-4. **Style and Polish**
-   - Apply appropriate styling (Tailwind/CSS)
-   - Ensure responsive design works properly
-   - Add loading and error states
-
-5. **Test and Validate**
-   - Test all acceptance criteria thoroughly
-   - Check for edge cases and error scenarios
-   - Verify integration with existing features`;
-}
-
-function getPlatformSpecificFooter(platform: string): string {
-  const footers: { [key: string]: string } = {
-    lovable: `
-## 💡 LOVABLE-SPECIFIC TIPS
-- Use the built-in components from shadcn-ui when possible
-- Leverage Supabase for data persistence and real-time features
-- Take advantage of TypeScript for better development experience
-- Use Tailwind classes for consistent styling
-- Test in the preview pane as you build`,
-    bolt: `
-## 💡 BOLT-SPECIFIC TIPS
-- Focus on clean, maintainable code structure
-- Use environment variables for configuration
-- Implement proper error handling throughout
-- Test across different browsers and devices
-- Optimize for performance and loading speed`,
-    cursor: `
-## 💡 CURSOR-SPECIFIC TIPS
-- Leverage AI assistance for code generation
-- Use proper code organization patterns
-- Implement comprehensive error handling
-- Document your code for future reference
-- Use version control for tracking changes`
-  };
-  
-  return footers[platform] || footers.lovable;
-}
-
-function getPlatformSpecificTroubleshooting(platform: string): string {
-  const troubleshooting: { [key: string]: string } = {
-    lovable: `
-- **Supabase connection issues**: Check environment variables and API keys
-- **shadcn-ui component problems**: Verify component imports and props
-- **TypeScript errors**: Check type definitions and interfaces
-- **Tailwind CSS not working**: Verify class names and configuration
-- **React hooks issues**: Check dependency arrays and state updates`,
-    bolt: `
-- **Build errors**: Check file structure and imports
-- **Styling issues**: Verify CSS and responsive design
-- **JavaScript errors**: Check syntax and browser compatibility
-- **Performance problems**: Optimize images and code splitting`,
-    cursor: `
--**Code completion issues**: Check language server and extensions
-- **Refactoring problems**: Verify code structure and dependencies
-- **Debugging difficulties**: Use proper debugging tools and techniques
-- **Integration issues**: Check API connections and data flow`
-  };
-  
-  return troubleshooting[platform] || troubleshooting.lovable;
 }
 
 function parseTroubleshootingSections(content: string) {
