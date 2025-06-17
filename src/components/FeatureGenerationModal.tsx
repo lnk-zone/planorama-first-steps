@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -48,6 +47,7 @@ const FeatureGenerationModal: React.FC<FeatureGenerationModalProps> = ({
         projectId,
         projectDescription,
         appType,
+        undefined, // Pass undefined instead of isRegeneration boolean
         isRegeneration
       );
 

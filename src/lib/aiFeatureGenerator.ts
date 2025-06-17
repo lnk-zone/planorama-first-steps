@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -29,6 +28,26 @@ export interface EnhancedProjectInput {
   technicalPreferences?: string;
   complexity: 'simple' | 'medium' | 'complex';
   includeAdvancedFeatures: boolean;
+}
+
+export interface ExecutionPlan {
+  phases: Phase[];
+  executionOrder: string[];
+  estimatedTotalHours: number;
+  totalStories: number;
+}
+
+export interface Phase {
+  number: number;
+  name: string;
+  stories: string[];
+  estimatedHours: number;
+}
+
+export interface Dependency {
+  targetStoryTitle: string;
+  type: 'must_do_first' | 'do_together';
+  reason: string;
 }
 
 export class AIFeatureGenerator {
@@ -234,7 +253,8 @@ export class AIFeatureGenerator {
     return {
       phases,
       executionOrder,
-      estimatedTotalHours
+      estimatedTotalHours,
+      totalStories: userStories.length
     };
   }
 
