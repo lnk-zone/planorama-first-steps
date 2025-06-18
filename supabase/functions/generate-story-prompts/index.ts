@@ -100,8 +100,8 @@ serve(async (req) => {
 
     console.log('✓ Successfully cleared existing prompts');
 
-    // Generate prompts using templates instead of AI calls
-    const prompts = generatePromptsWithTemplates(
+    // Generate prompts using enhanced templates
+    const prompts = generatePromptsWithEnhancedTemplates(
       project, 
       features || [], 
       userStories || [], 
@@ -288,8 +288,8 @@ function createFallbackPhases(userStories: any[]): any[] {
   return phases;
 }
 
-// Main generation function using templates instead of AI calls
-function generatePromptsWithTemplates(
+// Enhanced template generation system
+function generatePromptsWithEnhancedTemplates(
   project: any,
   features: any[],
   userStories: any[],
@@ -300,9 +300,9 @@ function generatePromptsWithTemplates(
   const storyPrompts = [];
   const transitionPrompts = [];
   
-  // Generate phase overview prompts using templates
+  // Generate phase overview prompts using enhanced templates
   for (const phase of structuredPhases) {
-    const phasePrompt = generatePhaseOverviewTemplate(project, phase, platform);
+    const phasePrompt = generateEnhancedPhaseOverviewTemplate(project, phase, platform);
     phaseOverviews.push({
       title: `Phase ${phase.number} Overview: ${phase.name}`,
       content: phasePrompt,
@@ -311,11 +311,14 @@ function generatePromptsWithTemplates(
     });
   }
   
-  // Generate story prompts using templates
+  // Generate story prompts using enhanced templates
   for (let i = 0; i < userStories.length; i++) {
     const story = userStories[i];
     const feature = features.find(f => f.id === story.feature_id);
-    const storyPrompt = generateStoryTemplate(project, story, feature, platform);
+    const storyType = determineStoryType(story, feature);
+    const complexity = determineComplexity(story);
+    
+    const storyPrompt = generateEnhancedStoryTemplate(project, story, feature, platform, storyType, complexity);
     storyPrompts.push({
       title: `Story ${i + 1}: ${story.title}`,
       content: storyPrompt,
@@ -325,13 +328,13 @@ function generatePromptsWithTemplates(
     });
   }
   
-  // Generate transition prompts using templates
+  // Generate transition prompts using enhanced templates
   for (let i = 0; i < userStories.length - 1; i++) {
     const currentStory = userStories[i];
     const nextStory = userStories[i + 1];
     const currentPhase = mapStoryToPhase(currentStory.title, structuredPhases);
     
-    const transitionPrompt = generateTransitionTemplate(project, currentStory, nextStory, platform);
+    const transitionPrompt = generateEnhancedTransitionTemplate(project, currentStory, nextStory, platform);
     transitionPrompts.push({
       title: `Transition: ${currentStory.title} → ${nextStory.title}`,
       content: transitionPrompt,
@@ -340,8 +343,8 @@ function generatePromptsWithTemplates(
     });
   }
   
-  // Generate troubleshooting guide using template
-  const troubleshootingGuide = generateTroubleshootingTemplate(project, platform);
+  // Generate enhanced troubleshooting guide
+  const troubleshootingGuide = generateEnhancedTroubleshootingTemplate(project, platform);
   
   return {
     phaseOverviews,
@@ -351,66 +354,157 @@ function generatePromptsWithTemplates(
   };
 }
 
-function generatePhaseOverviewTemplate(project: any, phase: any, platform: string): string {
+// Enhanced story type determination
+function determineStoryType(story: any, feature: any): string {
+  const title = story.title.toLowerCase();
+  const description = (story.description || '').toLowerCase();
+  const featureTitle = (feature?.title || '').toLowerCase();
+  
+  // Authentication stories
+  if (title.includes('login') || title.includes('register') || title.includes('auth') || 
+      title.includes('password') || title.includes('sign')) {
+    return 'authentication';
+  }
+  
+  // CRUD operations
+  if (title.includes('create') || title.includes('add') || title.includes('new')) {
+    return 'crud-create';
+  }
+  if (title.includes('edit') || title.includes('update') || title.includes('modify')) {
+    return 'crud-update';
+  }
+  if (title.includes('delete') || title.includes('remove')) {
+    return 'crud-delete';
+  }
+  if (title.includes('view') || title.includes('display') || title.includes('show') || title.includes('list')) {
+    return 'crud-read';
+  }
+  
+  // UI/UX stories
+  if (title.includes('dashboard') || title.includes('page') || title.includes('interface')) {
+    return 'ui-page';
+  }
+  if (title.includes('form') || title.includes('input')) {
+    return 'ui-form';
+  }
+  if (title.includes('navigation') || title.includes('menu')) {
+    return 'ui-navigation';
+  }
+  
+  // Data/API stories
+  if (title.includes('api') || title.includes('endpoint') || title.includes('service')) {
+    return 'api-integration';
+  }
+  if (title.includes('export') || title.includes('import') || title.includes('data')) {
+    return 'data-management';
+  }
+  
+  // Notification/Communication
+  if (title.includes('notification') || title.includes('email') || title.includes('alert')) {
+    return 'notification';
+  }
+  
+  // Search/Filter
+  if (title.includes('search') || title.includes('filter') || title.includes('sort')) {
+    return 'search-filter';
+  }
+  
+  // Settings/Configuration
+  if (title.includes('setting') || title.includes('config') || title.includes('preference')) {
+    return 'settings';
+  }
+  
+  return 'general';
+}
+
+// Enhanced complexity determination
+function determineComplexity(story: any): 'simple' | 'moderate' | 'complex' {
+  const estimatedHours = story.estimated_hours || 0;
+  const acceptanceCriteria = story.acceptance_criteria || [];
+  const description = story.description || '';
+  
+  // Complex indicators
+  if (estimatedHours > 8 || acceptanceCriteria.length > 5 || 
+      description.includes('integration') || description.includes('complex') ||
+      description.includes('multiple') || description.includes('advanced')) {
+    return 'complex';
+  }
+  
+  // Simple indicators
+  if (estimatedHours <= 3 || acceptanceCriteria.length <= 2) {
+    return 'simple';
+  }
+  
+  return 'moderate';
+}
+
+// Enhanced Phase Overview Template
+function generateEnhancedPhaseOverviewTemplate(project: any, phase: any, platform: string): string {
   const phaseName = phase.name || `Phase ${phase.number}`;
   const deliverables = Array.isArray(phase.deliverables) ? phase.deliverables : [];
   const estimatedHours = phase.estimatedHours || phase.estimated_hours || 'Not specified';
   const description = phase.description || 'No description available';
 
-  return `# ${phaseName} - Implementation Guide
+  const setupSection = generateSetupSection(project, platform);
+  const strategySection = generateStrategySection(deliverables, phaseName);
+  const bestPracticesSection = generateBestPracticesSection(platform);
+
+  return `# ${phaseName} - AI Builder Implementation Guide
 
 ## Project Context
 **Project:** ${project.title}
 **Description:** ${project.description}
 **Platform:** ${platform}
-
-## Phase Overview
 **Phase:** ${phaseName}
 **Estimated Time:** ${estimatedHours} hours
-**Description:** ${description}
 
-## Phase Objectives
+## Phase Overview
+${description}
+
 This phase focuses on implementing the following deliverables:
-
 ${deliverables.map((item: string, index: number) => `${index + 1}. ${item}`).join('\n')}
 
-## Implementation Strategy
-1. **Setup & Planning**
-   - Review all deliverables for this phase
-   - Ensure previous phase dependencies are complete
-   - Set up any necessary development environment configurations
+${setupSection}
 
-2. **Development Approach**
-   - Work through deliverables in the order listed above
-   - Test each component thoroughly before moving to the next
-   - Maintain clean, well-documented code throughout
+${strategySection}
 
-3. **${platform} Best Practices**
-   - Use proper component structure and naming conventions
-   - Implement responsive design principles
-   - Follow accessibility guidelines
-   - Optimize for performance
+${bestPracticesSection}
 
 ## Phase Completion Criteria
-- All deliverables are fully implemented and tested
-- Code is clean, documented, and follows best practices
-- All functionality works as expected across different screen sizes
-- No critical bugs or issues remain
+- [ ] All deliverables are fully implemented and tested
+- [ ] Code is clean, documented, and follows best practices
+- [ ] All functionality works as expected across different screen sizes
+- [ ] No critical bugs or issues remain
+- [ ] Integration with existing codebase is seamless
+- [ ] Performance meets acceptable standards
 
-## Tips for Success
-- Break down complex deliverables into smaller, manageable tasks
-- Test frequently during development
-- Keep the user experience at the forefront of all decisions
-- Don't hesitate to refactor code for clarity and maintainability
+## Success Metrics
+- All acceptance criteria for phase deliverables are met
+- Code passes review and testing standards
+- User experience is intuitive and responsive
+- Technical debt is minimized
 
-Ready to start this phase? Begin with the first deliverable and work your way through the list systematically.`;
+Ready to start this phase? Begin with the first deliverable and work systematically through each one.`;
 }
 
-function generateStoryTemplate(project: any, story: any, feature: any, platform: string): string {
+// Enhanced Story Template with intelligent adaptation
+function generateEnhancedStoryTemplate(
+  project: any, 
+  story: any, 
+  feature: any, 
+  platform: string, 
+  storyType: string, 
+  complexity: 'simple' | 'moderate' | 'complex'
+): string {
   const featureTitle = feature?.title || 'Unknown Feature';
   const storyDescription = story.description || 'No description provided';
   const acceptanceCriteria = story.acceptance_criteria?.join('\n- ') || 'Standard implementation and testing criteria';
   const estimatedHours = story.estimated_hours || 'Not specified';
+
+  // Get type-specific content
+  const typeSpecificContent = getTypeSpecificContent(storyType);
+  const complexityContent = getComplexityContent(complexity);
+  const platformContent = getPlatformContent(platform);
 
   return `# User Story Implementation: ${story.title}
 
@@ -418,6 +512,8 @@ function generateStoryTemplate(project: any, story: any, feature: any, platform:
 **Project:** ${project.title}
 **Feature:** ${featureTitle}
 **Platform:** ${platform}
+**Story Type:** ${storyType}
+**Complexity:** ${complexity}
 **Estimated Time:** ${estimatedHours} hours
 
 ## User Story Details
@@ -427,329 +523,801 @@ function generateStoryTemplate(project: any, story: any, feature: any, platform:
 ## Acceptance Criteria
 - ${acceptanceCriteria}
 
-## Implementation Guide
+${typeSpecificContent}
 
-### Step 1: Analysis & Planning
-1. **Understand the Requirements**
-   - Review the user story and acceptance criteria carefully
-   - Identify the core functionality needed
-   - Consider how this fits into the overall application flow
+${complexityContent}
 
-2. **Technical Planning**
-   - Determine which components need to be created or modified
-   - Identify any data models or API endpoints required
-   - Plan the user interface and user experience
+${platformContent}
 
-### Step 2: Development Setup
-1. **File Structure**
-   - Create or identify the relevant component files
-   - Set up any necessary utility functions or hooks
-   - Plan the component hierarchy
+## Implementation Workflow
 
-2. **Dependencies**
-   - Ensure all required packages are available
-   - Import necessary UI components from the design system
-   - Set up any external integrations if needed
+### Phase 1: Analysis & Planning (10-15% of time)
+1. **Requirements Analysis**
+   - Break down the user story into specific tasks
+   - Identify dependencies and prerequisites
+   - Review similar implementations in the codebase
 
-### Step 3: Core Implementation
-1. **Component Development**
-   - Start with the basic component structure
-   - Implement the core functionality step by step
+2. **Technical Design**
+   - Plan component architecture
+   - Design data flow and state management
+   - Identify reusable components and utilities
+
+### Phase 2: Development Setup (10-15% of time)
+1. **Environment Preparation**
+   - Set up necessary files and folder structure
+   - Install any required dependencies
+   - Configure development environment
+
+2. **Foundation Code**
+   - Create basic component structure
+   - Set up routing if needed
+   - Implement basic state management
+
+### Phase 3: Core Implementation (50-60% of time)
+1. **Feature Development**
+   - Implement core functionality step by step
    - Add proper TypeScript types and interfaces
+   - Integrate with backend services if needed
 
-2. **State Management**
-   - Set up local component state as needed
-   - Implement any global state management if required
-   - Handle data flow between components
+2. **User Interface**
+   - Create responsive, accessible UI components
+   - Implement proper error handling and loading states
+   - Follow design system guidelines
 
-3. **User Interface**
-   - Create a clean, intuitive user interface
-   - Ensure responsive design across all screen sizes
-   - Follow accessibility best practices
-
-### Step 4: Integration & Testing
-1. **Component Integration**
-   - Connect the component to the overall application
-   - Test all user interactions and edge cases
-   - Verify data persistence if applicable
+### Phase 4: Integration & Testing (15-20% of time)
+1. **System Integration**
+   - Connect with existing application features
+   - Test data flow and state management
+   - Verify API integrations
 
 2. **Quality Assurance**
-   - Test across different browsers and devices
-   - Verify all acceptance criteria are met
-   - Check for any performance issues
+   - Test across different devices and browsers
+   - Validate all acceptance criteria
+   - Check for edge cases and error scenarios
 
-### Step 5: ${platform} Specific Considerations
-- **Performance:** Optimize for fast loading and smooth interactions
-- **Responsiveness:** Ensure the feature works well on mobile and desktop
-- **Accessibility:** Include proper ARIA labels and keyboard navigation
-- **Code Quality:** Write clean, maintainable code with proper documentation
+### Phase 5: Finalization (5-10% of time)
+1. **Code Review & Cleanup**
+   - Remove debugging code and console logs
+   - Optimize performance if needed
+   - Document any complex logic
 
-## Common Implementation Patterns
-- Use React hooks for state management and side effects
-- Implement proper error handling and loading states
-- Follow the established design system and component patterns
-- Ensure proper form validation where applicable
+2. **Final Testing**
+   - Complete end-to-end testing
+   - Verify accessibility compliance
+   - Ensure mobile responsiveness
 
-## Testing Checklist
-- [ ] All acceptance criteria are met
-- [ ] Component renders correctly on different screen sizes
-- [ ] All user interactions work as expected
-- [ ] Error handling works properly
-- [ ] Data is saved/retrieved correctly
-- [ ] Performance is acceptable
-- [ ] Code is clean and well-documented
+## Technical Requirements Checklist
+- [ ] Component follows React best practices
+- [ ] TypeScript types are properly defined
+- [ ] Responsive design works on all screen sizes
+- [ ] Accessibility standards are met (ARIA labels, keyboard navigation)
+- [ ] Error handling is comprehensive
+- [ ] Loading states are implemented
+- [ ] Code is well-documented
+- [ ] Performance is optimized
 
 ## Success Criteria
 The user story is complete when:
 - All acceptance criteria are satisfied
-- The implementation follows best practices
-- The code is properly tested and documented
-- The feature integrates seamlessly with the rest of the application
+- Code follows project standards and best practices
+- Feature integrates seamlessly with existing application
+- User experience is intuitive and responsive
+- No critical bugs or issues remain
 
-Ready to implement? Start with Step 1 and work through each phase systematically.`;
+Ready to implement? Follow the workflow phases systematically for best results.`;
 }
 
-function generateTransitionTemplate(project: any, currentStory: any, nextStory: any, platform: string): string {
+// Type-specific content sections
+function getTypeSpecificContent(storyType: string): string {
+  const typeGuides = {
+    'authentication': `
+## Authentication Implementation Guide
+
+### Key Components
+- Authentication forms (login, register, reset password)
+- Protected route components
+- User session management
+- Error handling for auth failures
+
+### Common Patterns
+- Use React hook form for form validation
+- Implement proper password strength validation
+- Add loading states during authentication
+- Handle authentication errors gracefully
+
+### Security Considerations
+- Never store passwords in plain text
+- Use secure session management
+- Implement proper logout functionality
+- Add CSRF protection where needed`,
+
+    'crud-create': `
+## Create Operation Implementation Guide
+
+### Key Components
+- Form components with validation
+- API integration for data creation
+- Success/error feedback
+- Navigation after creation
+
+### Common Patterns
+- Use controlled form inputs
+- Implement real-time validation
+- Add confirmation dialogs if needed
+- Redirect to appropriate page after creation
+
+### Data Considerations
+- Validate data on both client and server
+- Handle unique constraint violations
+- Implement proper error messages
+- Consider optimistic updates`,
+
+    'crud-read': `
+## Read/Display Implementation Guide
+
+### Key Components
+- Data fetching and display components
+- Loading and error states
+- Pagination or infinite scroll
+- Search and filtering capabilities
+
+### Common Patterns
+- Use React Query for data fetching
+- Implement skeleton loading states
+- Add empty states for no data
+- Consider virtualization for large lists
+
+### Performance Considerations
+- Implement efficient data fetching
+- Use memoization where appropriate
+- Consider caching strategies
+- Optimize re-renders`,
+
+    'ui-form': `
+## Form Implementation Guide
+
+### Key Components
+- Form validation logic
+- Input components with proper types
+- Error message display
+- Submit handling
+
+### Common Patterns
+- Use React Hook Form for form management
+- Implement field-level validation
+- Add proper accessibility attributes
+- Handle form submission states
+
+### User Experience
+- Provide clear validation feedback
+- Implement auto-save if appropriate
+- Add confirmation for destructive actions
+- Ensure mobile-friendly interactions`,
+  };
+
+  return typeGuides[storyType] || `
+## General Implementation Guide
+
+### Key Components
+- Main feature components
+- Supporting utility functions
+- Integration with existing systems
+- User interface elements
+
+### Common Patterns
+- Follow established code patterns in the project
+- Use existing components where possible
+- Implement proper error handling
+- Add appropriate loading states
+
+### Best Practices
+- Write clean, maintainable code
+- Follow project coding standards
+- Add proper documentation
+- Test edge cases thoroughly`;
+}
+
+// Complexity-based content
+function getComplexityContent(complexity: 'simple' | 'moderate' | 'complex'): string {
+  const complexityGuides = {
+    'simple': `
+## Simple Implementation Approach
+
+This is a straightforward implementation that should follow established patterns:
+
+### Focus Areas
+- Use existing components and patterns
+- Keep implementation minimal and clean
+- Focus on core functionality
+- Ensure basic testing coverage
+
+### Time Allocation
+- Planning: 10%
+- Implementation: 70%
+- Testing: 20%`,
+
+    'moderate': `
+## Moderate Implementation Approach
+
+This implementation requires some planning and may involve multiple components:
+
+### Focus Areas
+- Plan component architecture carefully
+- Consider reusability of components
+- Implement comprehensive error handling
+- Add thorough testing
+
+### Time Allocation
+- Planning: 15%
+- Implementation: 60%
+- Testing: 25%`,
+
+    'complex': `
+## Complex Implementation Approach
+
+This is a sophisticated implementation requiring careful architecture:
+
+### Focus Areas
+- Design robust component architecture
+- Plan for scalability and maintainability
+- Implement comprehensive error handling
+- Create detailed tests and documentation
+- Consider performance implications
+
+### Time Allocation
+- Planning: 20%
+- Implementation: 50%
+- Testing: 25%
+- Documentation: 5%
+
+### Additional Considerations
+- Break down into smaller, manageable tasks
+- Consider creating reusable utilities
+- Plan for future extensibility
+- Implement monitoring and logging`
+  };
+
+  return complexityGuides[complexity];
+}
+
+// Platform-specific content
+function getPlatformContent(platform: string): string {
+  return `
+## ${platform} Platform Best Practices
+
+### Technology Stack
+- **Frontend:** React with TypeScript
+- **Styling:** Tailwind CSS with shadcn/ui components
+- **State Management:** React hooks and context
+- **Data Fetching:** React Query
+- **Forms:** React Hook Form
+- **Routing:** React Router
+
+### Development Standards
+- Use TypeScript for type safety
+- Follow React best practices (hooks, functional components)
+- Implement responsive design with Tailwind
+- Use shadcn/ui components for consistency
+- Write clean, maintainable code
+
+### Performance Guidelines
+- Optimize component re-renders
+- Use React.memo for expensive components
+- Implement proper loading states
+- Consider code splitting for large features
+- Optimize images and assets
+
+### Code Quality
+- Follow established naming conventions
+- Write self-documenting code
+- Add comments for complex logic
+- Use proper error boundaries
+- Implement proper accessibility`;
+}
+
+// Enhanced Transition Template
+function generateEnhancedTransitionTemplate(project: any, currentStory: any, nextStory: any, platform: string): string {
+  const currentType = determineStoryType(currentStory, null);
+  const nextType = determineStoryType(nextStory, null);
+  
   return `# Transition Guide: ${currentStory.title} → ${nextStory.title}
 
 ## Project Context
 **Project:** ${project.title}
 **Platform:** ${platform}
-**Current Story:** ${currentStory.title}
-**Next Story:** ${nextStory.title}
+**Current Story:** ${currentStory.title} (${currentType})
+**Next Story:** ${nextStory.title} (${nextType})
 
-## Transition Checklist
+## Pre-Transition Checklist
 
-### 1. Complete Current Story
-Before moving to the next story, ensure:
-- [ ] All functionality from "${currentStory.title}" is fully implemented
+### Current Story Completion Verification
 - [ ] All acceptance criteria have been met and tested
-- [ ] Code is clean, documented, and follows best practices
+- [ ] Code follows project standards and conventions
 - [ ] No critical bugs or issues remain
+- [ ] Feature integrates properly with existing codebase
+- [ ] Mobile responsiveness is working correctly
+- [ ] Accessibility requirements are met
 
-### 2. Code Review & Cleanup
-- [ ] Review the code for any potential improvements
-- [ ] Remove any console.log statements or debugging code
+### Code Quality Review
+- [ ] Remove any debugging code or console.log statements
 - [ ] Ensure proper error handling is in place
-- [ ] Verify that all TypeScript types are correctly defined
+- [ ] Verify TypeScript types are correctly defined
+- [ ] Code is properly documented
+- [ ] No unused imports or variables remain
 
-### 3. Testing & Validation
-- [ ] Test the completed functionality across different devices
-- [ ] Verify integration with existing features
-- [ ] Check for any regression issues
-- [ ] Validate that performance remains optimal
+### Testing & Validation
+- [ ] Manual testing completed across different devices
+- [ ] Integration with existing features verified
+- [ ] Performance impact assessed and acceptable
+- [ ] User experience flows work as expected
 
-### 4. Preparation for Next Story
-- [ ] Review the requirements for "${nextStory.title}"
-- [ ] Identify any dependencies or prerequisites
-- [ ] Consider how the next story will build upon current work
+## Knowledge Transfer Preparation
+
+### Current Implementation Summary
+Document what was implemented in "${currentStory.title}":
+- Key components created or modified
+- New utilities or hooks added
+- API endpoints or data models involved
+- Important design decisions made
+
+### Dependencies & Connections
+Identify how the current story relates to upcoming work:
+- Shared components that might be reused
+- Data structures that will be extended
+- Patterns established that should be followed
+- Integration points that affect future stories
+
+## Next Story Preparation
+
+### Context Review for "${nextStory.title}"
+- [ ] Review requirements and acceptance criteria
+- [ ] Understand how it builds on current work
+- [ ] Identify any new dependencies or prerequisites
 - [ ] Plan the implementation approach
 
-### 5. ${platform} Specific Checks
-- [ ] Ensure responsive design is working properly
-- [ ] Verify accessibility features are functioning
-- [ ] Check that all UI components are consistent with the design system
-- [ ] Validate that the code follows platform best practices
+### Environment Setup
+- [ ] Ensure development environment is clean
+- [ ] Update any necessary dependencies
+- [ ] Clear browser cache and localStorage if needed
+- [ ] Verify all tools and extensions are working
 
-## Technical Considerations
-- **Data Flow:** Ensure any data changes from the current story are properly handled
-- **State Management:** Verify that component state is properly managed and cleaned up
-- **API Integration:** Check that any API calls are working correctly and handling errors
-- **UI Consistency:** Maintain consistent styling and interaction patterns
+## Transition Strategy
 
-## Next Steps
-Once you've completed this transition checklist:
-1. Commit your current changes with a clear commit message
-2. Take a moment to review the overall application flow
-3. Begin planning the implementation of "${nextStory.title}"
-4. Start the next story with a fresh perspective and clear objectives
+### Type-Specific Considerations
+${getTransitionTypeGuidance(currentType, nextType)}
 
-Remember: Quality over speed. It's better to have fewer, well-implemented features than many incomplete ones.
+### Knowledge Continuity
+- Maintain consistent coding patterns established
+- Reuse components and utilities where appropriate
+- Follow the same design system and styling approach
+- Continue using established state management patterns
 
-Ready to move to the next story? Ensure all items in the checklist above are completed first.`;
+### Quality Assurance
+- Apply the same testing rigor to the next story
+- Maintain the same code quality standards
+- Use similar documentation patterns
+- Follow established git commit conventions
+
+## Success Criteria for Transition
+- [ ] Current story is fully complete and documented
+- [ ] Code repository is clean and well-organized
+- [ ] Next story requirements are clearly understood
+- [ ] Development environment is prepared
+- [ ] Any shared code is properly organized and documented
+
+## Final Notes
+Before starting "${nextStory.title}":
+1. Take a brief break to clear your mind
+2. Review the overall project goals and how this story fits
+3. Consider any learnings from the current story that apply to the next
+4. Ensure you have a clear plan for the next implementation
+
+Ready to proceed? Ensure all checklist items are completed before moving forward.`;
 }
 
-function generateTroubleshootingTemplate(project: any, platform: string): string {
-  return `# Troubleshooting Guide - ${project.title}
+function getTransitionTypeGuidance(currentType: string, nextType: string): string {
+  if (currentType === 'authentication' && nextType.startsWith('crud')) {
+    return `
+**Authentication → CRUD Transition:**
+- Ensure authentication state is properly managed
+- Verify protected routes are working
+- User session should persist for CRUD operations
+- Consider how user permissions affect CRUD functionality`;
+  }
+  
+  if (currentType.startsWith('crud') && nextType.startsWith('crud')) {
+    return `
+**CRUD → CRUD Transition:**
+- Leverage existing data models and API patterns
+- Reuse form components and validation logic
+- Maintain consistent UI patterns across operations
+- Consider optimistic updates and caching strategies`;
+  }
+  
+  if (currentType.startsWith('ui') && nextType !== currentType) {
+    return `
+**UI → Feature Transition:**
+- Ensure UI components are properly extracted and reusable
+- Verify responsive design works across all screen sizes
+- Document any new design patterns for consistency
+- Test navigation and user flow transitions`;
+  }
+  
+  return `
+**General Transition:**
+- Maintain consistency with established patterns
+- Reuse common components and utilities
+- Follow the same coding standards and conventions
+- Consider how features will work together in the final application`;
+}
+
+// Enhanced Troubleshooting Template
+function generateEnhancedTroubleshootingTemplate(project: any, platform: string): string {
+  return `# Comprehensive Troubleshooting Guide - ${project.title}
 
 ## Project Context
 **Project:** ${project.title}
 **Platform:** ${platform}
 **Project Type:** ${project.project_type || 'Web Application'}
 
-## Common Issues & Solutions
+## Quick Reference - Common Issues
 
-### 1. Build & Compilation Issues
+### 🚀 Build & Compilation
+| Issue | Quick Fix | Details |
+|-------|-----------|---------|
+| TypeScript errors | Check types, imports, props | See TypeScript section below |
+| Module not found | Verify import paths, case sensitivity | See Import section below |
+| Build fails | Clear cache, restart dev server | \`rm -rf node_modules .next && npm install\` |
 
-**Problem:** TypeScript compilation errors
+### ⚛️ React Component Issues
+| Issue | Quick Fix | Details |
+|-------|-----------|---------|
+| Component not rendering | Check export/import, JSX syntax | See React section below |
+| State not updating | Use functional updates, check dependencies | See State section below |
+| Props not passing | Verify prop names, types, destructuring | See Props section below |
+
+### 🎨 Styling & UI
+| Issue | Quick Fix | Details |
+|-------|-----------|---------|
+| Tailwind not working | Check class names, restart server | See Styling section below |
+| Not responsive | Use responsive prefixes | \`sm:\`, \`md:\`, \`lg:\`, \`xl:\` |
+| Components misaligned | Check flex/grid properties | See Layout section below |
+
+## Detailed Troubleshooting Sections
+
+### 1. TypeScript & Compilation Issues
+
+**Problem: TypeScript compilation errors**
+```bash
+# Common fixes:
+npm run type-check
+# or
+npx tsc --noEmit
+```
+
 **Solutions:**
-- Check for missing type definitions in interfaces
-- Ensure all imports have correct file paths
-- Verify that all required props are passed to components
-- Check for unused variables or imports
+- Check for missing type definitions
+- Verify all imports have correct file paths
+- Ensure all required props are provided to components
+- Look for unused variables or imports
 
-**Problem:** Module not found errors
-**Solutions:**
-- Verify import paths are correct (case-sensitive)
-- Check that all required dependencies are installed
-- Ensure file extensions are correct (.tsx for JSX, .ts for TypeScript)
-- Clear the build cache and restart the development server
+**Problem: Module resolution errors**
+```typescript
+// ❌ Wrong - case sensitive paths
+import Component from './Component'
+// ✅ Correct
+import Component from './Component.tsx'
+```
 
-### 2. React Component Issues
+**Advanced TypeScript Debugging:**
+```typescript
+// Add explicit types to debug
+const MyComponent: React.FC<Props> = ({ prop1, prop2 }) => {
+  // implementation
+}
+```
 
-**Problem:** Component not rendering
-**Solutions:**
-- Check that the component is properly exported and imported
-- Verify JSX syntax is correct (proper closing tags, fragments)
-- Ensure all required props are provided
-- Check for conditional rendering logic errors
+### 2. React Component & State Management
 
-**Problem:** State not updating
-**Solutions:**
-- Verify useState is imported from React
-- Check that state setter functions are called correctly
-- Ensure state updates are not mutating the original state
-- Use useEffect dependencies correctly
+**Problem: Component not rendering**
+```jsx
+// ✅ Ensure proper export/import
+export default function MyComponent() {
+  return <div>Content</div>
+}
 
-### 3. Styling & UI Issues
+// ✅ Check JSX syntax
+return (
+  <div>
+    <h1>Title</h1>
+  </div>
+)
+```
 
-**Problem:** Tailwind classes not working
-**Solutions:**
-- Verify Tailwind CSS is properly configured
-- Check for typos in class names
-- Ensure responsive prefixes are correct (sm:, md:, lg:)
-- Clear browser cache and restart development server
+**Problem: State not updating**
+```jsx
+// ❌ Wrong - direct mutation
+setState(state.push(newItem))
 
-**Problem:** Layout not responsive
-**Solutions:**
-- Use Tailwind responsive utilities (sm:, md:, lg:, xl:)
-- Test on different screen sizes during development
-- Use flexbox and grid utilities appropriately
-- Check for fixed widths that might break on mobile
+// ✅ Correct - immutable update
+setState(prev => [...prev, newItem])
 
-### 4. Data & API Issues
+// ✅ Functional updates
+setCount(prevCount => prevCount + 1)
+```
 
-**Problem:** Data not loading
-**Solutions:**
-- Check network tab in browser dev tools for API errors
-- Verify API endpoints are correct
-- Ensure proper error handling is implemented
-- Check for authentication issues
+**Problem: useEffect issues**
+```jsx
+// ✅ Proper dependency array
+useEffect(() => {
+  fetchData(userId)
+}, [userId]) // Include all dependencies
 
-**Problem:** Form submission issues
-**Solutions:**
-- Verify form validation logic
-- Check that all required fields are properly handled
-- Ensure form data is being serialized correctly
-- Test both success and error scenarios
+// ✅ Cleanup functions
+useEffect(() => {
+  const timer = setInterval(() => {}, 1000)
+  return () => clearInterval(timer)
+}, [])
+```
 
-### 5. ${platform} Specific Issues
+### 3. Data Fetching & API Integration
 
-**Development Environment:**
-- Clear browser cache and cookies
-- Restart the development server
-- Check browser console for JavaScript errors
-- Update dependencies if needed
+**Problem: API calls failing**
+```typescript
+// ✅ Proper error handling
+const { data, error, isLoading } = useQuery({
+  queryKey: ['users'],
+  queryFn: async () => {
+    const response = await fetch('/api/users')
+    if (!response.ok) {
+      throw new Error(\`HTTP error! status: \${response.status}\`)
+    }
+    return response.json()
+  }
+})
 
-**Performance Issues:**
-- Optimize component re-renders with React.memo
-- Use proper dependency arrays in useEffect hooks
-- Lazy load components where appropriate
-- Optimize images and assets
+if (error) {
+  console.error('API Error:', error)
+  return <div>Error loading data</div>
+}
+```
 
-### 6. Authentication & Security
+**Problem: Supabase integration issues**
+```typescript
+// ✅ Check Supabase connection
+import { supabase } from '@/integrations/supabase/client'
 
-**Problem:** User authentication not working
-**Solutions:**
-- Check authentication provider configuration
-- Verify API keys and credentials are correct
-- Ensure proper session management
-- Test login/logout flows thoroughly
+const { data, error } = await supabase
+  .from('table_name')
+  .select('*')
 
-**Problem:** Authorization issues
-**Solutions:**
-- Check user permissions and roles
-- Verify protected route configurations
-- Ensure proper access control implementation
-- Test with different user types
+if (error) {
+  console.error('Supabase error:', error)
+}
+```
 
-### 7. Database & Storage Issues
+### 4. Styling & Layout Issues
 
-**Problem:** Data not persisting
-**Solutions:**
-- Check database connection configuration
-- Verify table schemas and relationships
-- Ensure proper error handling for database operations
-- Check for transaction rollbacks
+**Problem: Tailwind classes not applying**
+```jsx
+// ✅ Check for typos in class names
+<div className="bg-blue-500 text-white p-4">
+  
+// ✅ Use string literals, not template literals for static classes
+<div className="bg-blue-500 hover:bg-blue-600">
 
-**Problem:** Query performance issues
-**Solutions:**
-- Review database indexes
-- Optimize query structure
-- Consider pagination for large datasets
-- Monitor query execution times
+// ✅ For dynamic classes, use full class names
+<div className={isActive ? 'bg-blue-500' : 'bg-gray-500'}>
+```
+
+**Problem: Responsive design not working**
+```jsx
+// ✅ Mobile-first approach
+<div className="w-full md:w-1/2 lg:w-1/3">
+  
+// ✅ Responsive text sizes
+<h1 className="text-xl md:text-2xl lg:text-3xl">
+```
+
+**Problem: Layout issues**
+```jsx
+// ✅ Flexbox for alignment
+<div className="flex items-center justify-between">
+  
+// ✅ Grid for complex layouts
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+```
+
+### 5. Form Handling & Validation
+
+**Problem: Form submission issues**
+```typescript
+// ✅ Proper form handling with React Hook Form
+import { useForm } from 'react-hook-form'
+
+const { register, handleSubmit, formState: { errors } } = useForm()
+
+const onSubmit = (data) => {
+  console.log(data)
+}
+
+return (
+  <form onSubmit={handleSubmit(onSubmit)}>
+    <input {...register('email', { required: 'Email is required' })} />
+    {errors.email && <span>{errors.email.message}</span>}
+  </form>
+)
+```
+
+### 6. Performance & Optimization
+
+**Problem: Component re-rendering too often**
+```typescript
+// ✅ Use React.memo for expensive components
+const ExpensiveComponent = React.memo(({ data }) => {
+  return <div>{/* expensive rendering */}</div>
+})
+
+// ✅ Use useMemo for expensive calculations
+const expensiveValue = useMemo(() => {
+  return heavyCalculation(data)
+}, [data])
+
+// ✅ Use useCallback for stable function references
+const handleClick = useCallback(() => {
+  // handler logic
+}, [dependency])
+```
 
 ## Debugging Strategies
 
 ### 1. Browser Developer Tools
-- **Console:** Check for JavaScript errors and logs
-- **Network:** Monitor API calls and responses
-- **Elements:** Inspect HTML structure and CSS
-- **Sources:** Set breakpoints and debug JavaScript
+```javascript
+// Add strategic console.logs
+console.log('Component rendered with props:', props)
+console.log('State updated:', state)
 
-### 2. React Developer Tools
-- Inspect component props and state
-- Monitor component re-renders
-- Check component hierarchy
-- Debug hooks and context
+// Use debugger statements
+debugger; // Execution will pause here
 
-### 3. Code Review Checklist
-- [ ] All imports are correct and necessary
-- [ ] Components are properly structured
-- [ ] State management is appropriate
-- [ ] Error handling is implemented
-- [ ] Code follows project conventions
-- [ ] Performance considerations are addressed
+// Check React Developer Tools
+// Install React DevTools browser extension
+```
 
-### 4. Testing Approach
-- Test individual components in isolation
-- Verify integration between components
-- Test different user scenarios
-- Check edge cases and error conditions
-- Validate across different browsers and devices
+### 2. Network & API Debugging
+```javascript
+// Monitor network requests in DevTools
+// Check request/response in Network tab
+// Verify API endpoints and payload
 
-## Getting Help
+// Add request logging
+fetch('/api/endpoint')
+  .then(response => {
+    console.log('Response status:', response.status)
+    return response.json()
+  })
+  .then(data => console.log('Response data:', data))
+```
 
-If you're still stuck after trying these solutions:
+### 3. State Debugging
+```typescript
+// Use React DevTools to inspect state
+// Add state logging in useEffect
+useEffect(() => {
+  console.log('State changed:', state)
+}, [state])
 
-1. **Check the Documentation**
-   - Review framework-specific documentation
-   - Check component library documentation
-   - Look for similar issues in community forums
+// Use Redux DevTools for complex state
+// Add state snapshots for debugging
+```
 
-2. **Debugging Steps**
-   - Isolate the problem to a specific component or function
-   - Create a minimal reproduction of the issue
-   - Check recent changes that might have caused the problem
-   - Test with different data or user scenarios
+## Platform-Specific Issues
 
-3. **Code Review**
-   - Review recent commits for potential issues
-   - Check for any missing dependencies or configurations
-   - Verify that all environment variables are set correctly
-   - Ensure proper error handling is in place
+### React + Vite Issues
+```bash
+# Clear Vite cache
+rm -rf node_modules/.vite
+npm run dev
 
-Remember: Most issues are caused by simple mistakes like typos, missing imports, or incorrect prop passing. Start with the basics and work your way up to more complex debugging.
+# Check Vite config
+# Verify import paths are correct
+# Ensure all file extensions are included
+```
 
-## Best Practices to Prevent Issues
+### Tailwind CSS Issues
+```bash
+# Regenerate Tailwind
+npm run build:css
 
-- Write clean, well-documented code
-- Test functionality as you build it
-- Use TypeScript properly with correct types
-- Follow consistent naming conventions
-- Implement proper error handling from the start
+# Check tailwind.config.js
+# Verify content paths are correct
+# Check for conflicting styles
+```
+
+### TypeScript Issues
+```bash
+# Type check without build
+npx tsc --noEmit
+
+# Check tsconfig.json
+# Verify path mappings
+# Check for strict mode issues
+```
+
+## Best Practices for Prevention
+
+### 1. Code Organization
 - Keep components small and focused
-- Use version control effectively with clear commit messages
+- Use proper file and folder structure
+- Follow consistent naming conventions
+- Separate concerns (UI, logic, data)
 
-Happy debugging! 🐛→🚀`;
+### 2. Error Handling
+```typescript
+// ✅ Comprehensive error boundaries
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false }
+  }
+  
+  static getDerivedStateFromError(error) {
+    return { hasError: true }
+  }
+  
+  componentDidCatch(error, errorInfo) {
+    console.error('Error caught by boundary:', error, errorInfo)
+  }
+  
+  render() {
+    if (this.state.hasError) {
+      return <h1>Something went wrong.</h1>
+    }
+    return this.props.children
+  }
+}
+```
+
+### 3. Testing Strategy
+```typescript
+// ✅ Test components in isolation
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+
+test('component renders correctly', () => {
+  render(<MyComponent />)
+  expect(screen.getByText('Expected Text')).toBeInTheDocument()
+})
+```
+
+### 4. Development Workflow
+- Use consistent git commit messages
+- Test frequently during development
+- Keep dependencies up to date
+- Use linting and formatting tools
+- Document complex logic
+
+## Getting Additional Help
+
+### 1. Documentation Resources
+- [React Documentation](https://react.dev)
+- [TypeScript Handbook](https://www.typescriptlang.org/docs)
+- [Tailwind CSS Docs](https://tailwindcss.com/docs)
+- [React Query Docs](https://tanstack.com/query)
+
+### 2. Debugging Tools
+- React Developer Tools
+- Browser DevTools
+- TypeScript Error Messages
+- Vite Development Server Logs
+
+### 3. Community Resources
+- Stack Overflow for specific issues
+- GitHub Issues for library-specific problems
+- Discord/Slack communities for real-time help
+- Official documentation and guides
+
+Remember: Most issues are caused by simple mistakes. Start with the basics and work your way up to more complex debugging.
+
+Happy debugging! 🐛→✨`;
 }
