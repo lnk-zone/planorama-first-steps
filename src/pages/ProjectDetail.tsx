@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -27,7 +26,7 @@ const ProjectDetail: React.FC = () => {
   const { features, loading: featuresLoading, refetch: refetchFeatures } = useFeatures(id || '');
   const { userStories, loading: storiesLoading, refetch: refetchStories } = useUserStories(features.map(f => f.id));
 
-  const [activeTab, setActiveTab] = useState('metrics');
+  const [activeTab, setActiveTab] = useState('features');
   const [showAIFeatureModal, setShowAIFeatureModal] = useState(false);
   const [showAddFeatureModal, setShowAddFeatureModal] = useState(false);
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
@@ -168,16 +167,11 @@ const ProjectDetail: React.FC = () => {
         {/* Main Content */}
         {hasFeatures ? (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full max-w-2xl grid-cols-4">
-              <TabsTrigger value="metrics">Metrics</TabsTrigger>
+            <TabsList className="grid w-full max-w-2xl grid-cols-3">
               <TabsTrigger value="features">Features</TabsTrigger>
               <TabsTrigger value="prd">PRD</TabsTrigger>
               <TabsTrigger value="prompts">Prompts</TabsTrigger>
             </TabsList>
-
-            <TabsContent value="metrics" className="space-y-4">
-              <ProjectMetrics projects={[project]} />
-            </TabsContent>
 
             <TabsContent value="features" className="space-y-4">
               {/* Action Buttons */}
