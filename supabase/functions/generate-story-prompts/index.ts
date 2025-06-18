@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -311,14 +310,14 @@ function generatePromptsWithEnhancedTemplates(
     });
   }
   
-  // Generate story prompts using enhanced templates
+  // Generate story prompts using enhanced templates with plan-first workflow
   for (let i = 0; i < userStories.length; i++) {
     const story = userStories[i];
     const feature = features.find(f => f.id === story.feature_id);
     const storyType = determineStoryType(story, feature);
     const complexity = determineComplexity(story);
     
-    const storyPrompt = generateEnhancedStoryTemplate(project, story, feature, platform, storyType, complexity);
+    const storyPrompt = generateEnhancedStoryTemplateWithPlanFirst(project, story, feature, platform, storyType, complexity);
     storyPrompts.push({
       title: `Story ${i + 1}: ${story.title}`,
       content: storyPrompt,
@@ -487,8 +486,8 @@ ${bestPracticesSection}
 Ready to start this phase? Begin with the first deliverable and work systematically through each one.`;
 }
 
-// Enhanced Story Template with intelligent adaptation
-function generateEnhancedStoryTemplate(
+// Enhanced Story Template with Plan-First Workflow
+function generateEnhancedStoryTemplateWithPlanFirst(
   project: any, 
   story: any, 
   feature: any, 
@@ -529,82 +528,159 @@ ${complexityContent}
 
 ${platformContent}
 
-## Implementation Workflow
+## 🚨 MANDATORY: PLANNING & CONFIRMATION PHASE
 
-### Phase 1: Analysis & Planning (10-15% of time)
-1. **Requirements Analysis**
-   - Break down the user story into specific tasks
-   - Identify dependencies and prerequisites
-   - Review similar implementations in the codebase
+**STOP! Before writing any code, you MUST complete this planning phase:**
 
-2. **Technical Design**
-   - Plan component architecture
-   - Design data flow and state management
+### Step 1: Create Implementation Plan
+Present a detailed implementation plan that includes:
+
+1. **Technical Approach**
+   - High-level architecture and component structure
+   - Key technologies and libraries to be used
+   - Integration points with existing codebase
+
+2. **Component Breakdown**
+   - List all React components to be created or modified
+   - Describe the responsibility of each component
    - Identify reusable components and utilities
 
-### Phase 2: Development Setup (10-15% of time)
-1. **Environment Preparation**
-   - Set up necessary files and folder structure
-   - Install any required dependencies
-   - Configure development environment
+3. **Data Flow & State Management**
+   - How data will flow between components
+   - State management approach (useState, useContext, etc.)
+   - API endpoints or database interactions needed
 
-2. **Foundation Code**
-   - Create basic component structure
-   - Set up routing if needed
-   - Implement basic state management
+4. **Implementation Steps**
+   - Break down the work into 3-5 specific, actionable tasks
+   - Order tasks by logical dependency
+   - Estimate time for each step
 
-### Phase 3: Core Implementation (50-60% of time)
-1. **Feature Development**
-   - Implement core functionality step by step
-   - Add proper TypeScript types and interfaces
-   - Integrate with backend services if needed
+5. **Files to Create/Modify**
+   - List exact file paths that will be created or modified
+   - Specify the purpose of each file
 
-2. **User Interface**
-   - Create responsive, accessible UI components
-   - Implement proper error handling and loading states
-   - Follow design system guidelines
+### Step 2: Present Plan for Approval
+Format your plan clearly using this structure:
 
-### Phase 4: Integration & Testing (15-20% of time)
+\`\`\`
+## Implementation Plan for: ${story.title}
+
+### Technical Approach
+[Describe your overall approach]
+
+### Components to Create/Modify
+- **ComponentName.tsx** - Purpose and functionality
+- **hooks/useCustomHook.ts** - Purpose and functionality
+- [etc.]
+
+### Implementation Steps
+1. **Task 1 Name** (Est: X minutes)
+   - Specific actions to take
+   - Expected outcome
+
+2. **Task 2 Name** (Est: X minutes)
+   - Specific actions to take
+   - Expected outcome
+
+[Continue for all tasks]
+
+### Questions/Clarifications
+- [Any questions about requirements]
+- [Any assumptions that need confirmation]
+\`\`\`
+
+### Step 3: Wait for Confirmation
+**CRITICAL: You MUST explicitly ask for approval before proceeding:**
+
+"Please review this implementation plan and let me know if you approve or if you'd like any changes before I start coding."
+
+**DO NOT WRITE ANY CODE until the user confirms the plan is acceptable.**
+
+### Step 4: Handle Plan Modifications
+If the user requests changes:
+- Update the plan based on their feedback
+- Present the revised plan
+- Ask for confirmation again
+- Only proceed when explicitly approved
+
+---
+
+## Implementation Workflow (ONLY AFTER PLAN APPROVAL)
+
+Once your plan has been approved, follow this systematic approach:
+
+### Phase 1: Environment Setup (5-10% of time)
+**Reference your approved plan for specific files and setup requirements**
+
+1. **File Structure Preparation**
+   - Create the exact files specified in your approved plan
+   - Set up the folder structure as outlined
+   - Install any new dependencies identified in the plan
+
+2. **Basic Scaffolding**
+   - Create component shells with basic TypeScript interfaces
+   - Set up imports and exports as planned
+   - Establish the foundation code structure
+
+### Phase 2: Core Implementation (60-70% of time)
+**Follow the step-by-step tasks from your approved plan**
+
+1. **Component Development**
+   - Implement each component according to the approved specifications
+   - Follow the component breakdown from your plan
+   - Build in the order specified in your implementation steps
+
+2. **State Management & Logic**
+   - Implement the data flow as described in your plan
+   - Add the state management approach you outlined
+   - Connect API integrations as specified
+
+3. **Styling & UI**
+   - Apply responsive design with Tailwind CSS
+   - Use shadcn/ui components as planned
+   - Ensure accessibility compliance
+
+### Phase 3: Integration & Testing (20-25% of time)
+**Verify that implementation matches the approved plan**
+
 1. **System Integration**
-   - Connect with existing application features
-   - Test data flow and state management
-   - Verify API integrations
+   - Connect with existing codebase as outlined in plan
+   - Test the integration points you identified
+   - Verify data flow works as designed
 
-2. **Quality Assurance**
-   - Test across different devices and browsers
-   - Validate all acceptance criteria
-   - Check for edge cases and error scenarios
+2. **Quality Verification**
+   - Test all acceptance criteria
+   - Verify the implementation matches your approved plan
+   - Check responsive design and accessibility
 
-### Phase 5: Finalization (5-10% of time)
-1. **Code Review & Cleanup**
-   - Remove debugging code and console logs
+### Phase 4: Final Review & Documentation (5-10% of time)
+1. **Plan Compliance Check**
+   - Confirm all planned components were created
+   - Verify all planned functionality is implemented
+   - Ensure no scope creep beyond the approved plan
+
+2. **Code Quality Review**
+   - Clean up any debugging code
    - Optimize performance if needed
    - Document any complex logic
 
-2. **Final Testing**
-   - Complete end-to-end testing
-   - Verify accessibility compliance
-   - Ensure mobile responsiveness
-
-## Technical Requirements Checklist
-- [ ] Component follows React best practices
-- [ ] TypeScript types are properly defined
-- [ ] Responsive design works on all screen sizes
-- [ ] Accessibility standards are met (ARIA labels, keyboard navigation)
-- [ ] Error handling is comprehensive
-- [ ] Loading states are implemented
-- [ ] Code is well-documented
-- [ ] Performance is optimized
-
 ## Success Criteria
-The user story is complete when:
-- All acceptance criteria are satisfied
-- Code follows project standards and best practices
-- Feature integrates seamlessly with existing application
-- User experience is intuitive and responsive
-- No critical bugs or issues remain
+The implementation is complete when:
+- [ ] All tasks from the approved plan are completed
+- [ ] All acceptance criteria are satisfied
+- [ ] Implementation matches the approved technical approach
+- [ ] Code follows project standards and best practices
+- [ ] Feature integrates seamlessly with existing application
+- [ ] User experience is intuitive and responsive
+- [ ] No critical bugs or issues remain
 
-Ready to implement? Follow the workflow phases systematically for best results.`;
+## Important Notes
+- **Always stick to your approved plan** - don't add features or change approach without user consent
+- **If you discover issues with the plan during implementation**, stop and discuss with the user before proceeding
+- **Reference your approved plan throughout implementation** to ensure consistency
+- **The plan serves as a contract** between you and the user for what will be delivered
+
+Remember: Planning prevents poor performance. A well-thought-out plan leads to better code and fewer surprises!`;
 }
 
 // Type-specific content sections
