@@ -31,6 +31,11 @@ const buildEnhancedPRDPrompt = (projectData: any, template: string): string => {
     generateStructuredImplementationRoadmap(structuredPhases) :
     generateFallbackImplementationRoadmap(executionPlan);
 
+  // Generate explicit phase coverage instructions
+  const phaseByPhaseCoverageInstructions = structuredPhases && structuredPhases.length > 0 ? 
+    generatePhaseByPhaseInstructions(structuredPhases) :
+    generateFallbackPhaseInstructions(executionPlan);
+
   // Analyze features to extract context
   const authFeatures = features.filter((f: any) => 
     f.category === 'auth' || 
@@ -186,7 +191,12 @@ ${template === 'ai_builder' ? `
 Please provide Lovable/Bolt/Cursor specific considerations and best practices, recommended implementation sequence with detailed steps, copy-paste ready specifications for each feature, common pitfalls and solutions with specific examples, and testing and validation approaches for AI-built applications.
 
 ## 10. Phase-by-Phase Development Plan
-Please include detailed breakdown of each development phase with specific tasks, prerequisites and dependencies for each phase, AI builder session recommendations and time estimates, and quality assurance checkpoints with validation criteria.
+
+CRITICAL INSTRUCTION: You must provide detailed coverage for EVERY SINGLE phase listed below. Do not provide examples or truncate. Write complete specifications for ALL phases.
+
+${phaseByPhaseCoverageInstructions}
+
+IMPORTANT: The above phases are the complete list. You must write detailed specifications for EVERY phase listed above. Do not use phrases like "and more", "similar patterns", "continue for all", or provide only examples. Each phase must be individually covered with complete detail.
 ` : ''}
 
 ## ${template === 'ai_builder' ? '11' : '9'}. Out of Scope
@@ -203,6 +213,42 @@ DELIVERABLE SPECIFICATIONS:
 This document will serve as the definitive guide for building this ${appType} application with ${features.length} features and ${userStories.length} user stories.
   `.trim();
 };
+
+function generatePhaseByPhaseInstructions(phases: any[]): string {
+  if (!phases || phases.length === 0) {
+    return "Please provide detailed development phases with task breakdowns, dependencies, time estimates, and quality checkpoints.";
+  }
+
+  return `
+Please provide comprehensive coverage for each of the following ${phases.length} phases:
+
+${phases.map((phase: any, index: number) => `
+### For ${phase.name} (Phase ${index + 1}):
+**Detailed Breakdown of Tasks:** Provide a complete list of specific development tasks for ${phase.name}, including all deliverables: ${phase.deliverables?.join(', ') || 'Core development tasks'}. Estimated effort: ${phase.estimatedHours || 0} hours.
+
+**Prerequisites and Dependencies:** List all requirements that must be completed before starting ${phase.name}. Include any dependencies on previous phases, external systems, or resources.
+
+**AI Builder Session Recommendations:** Provide specific guidance for implementing ${phase.name} using AI builders like Lovable, Bolt, or Cursor. Include recommended session structure, time estimates, and specific prompts or approaches.
+
+**Quality Assurance Checkpoints:** Define validation criteria and testing requirements for ${phase.name}. Include what success looks like and how to verify completion before moving to the next phase.
+`).join('\n')}
+
+CRITICAL: You must provide complete coverage for all ${phases.length} phases listed above. Each phase must have detailed specifications for tasks, dependencies, AI builder recommendations, and quality checkpoints. Do not summarize or provide examples only.
+`.trim();
+}
+
+function generateFallbackPhaseInstructions(executionPlan: any): string {
+  const phaseCount = executionPlan?.phases?.length || 3;
+  return `
+Please provide detailed breakdown for all ${phaseCount} development phases including:
+- Specific tasks and deliverables for each phase
+- Prerequisites and dependencies
+- AI builder session recommendations with time estimates
+- Quality assurance checkpoints and validation criteria
+
+Cover all ${phaseCount} phases completely without truncation.
+`;
+}
 
 function generateStructuredImplementationRoadmap(phases: any[]): string {
   if (!phases || phases.length === 0) {
@@ -350,6 +396,9 @@ Document Purpose:
 - Provides implementation guidance for development teams
 - Contains complete specifications without requiring additional clarification
 - Enables non-technical users to understand project scope and requirements
+
+CRITICAL INSTRUCTION FOR PHASE-BY-PHASE SECTIONS:
+When you encounter instructions to cover multiple phases or items individually, you MUST provide complete coverage for each one. Never use phrases like "and more", "similar patterns", "continue for all", or provide only examples. Each phase, feature, or item must be individually addressed with full detail. This is essential for the document's completeness and professional quality.
 
 Please create detailed, professional documentation that covers all aspects of the project comprehensively. Every feature should be fully specified, every user story should include complete acceptance criteria, and all sections should provide the depth of information needed for successful project execution.`
           },
