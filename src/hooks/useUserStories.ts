@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 
@@ -35,72 +35,82 @@ export interface CreateUserStoryData {
 }
 
 export const useUserStories = (featureIds: string | string[]) => {
-  const [userStories, setUserStories] = useState<UserStory[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const fetchUserStories = async () => {
-    if (!featureIds || (Array.isArray(featureIds) && featureIds.length === 0)) {
-      setUserStories([]);
-      return;
-    }
+  const { data: userStories = [], isLoading: loading, refetch } = useQuery({
+    queryKey: ['user-stories', featureIds],
+    queryFn: async () => {
+      if (!featureIds || (Array.isArray(featureIds) && featureIds.length === 0)) {
+        return [];
+      }
 
-    const ids = Array.isArray(featureIds) ? featureIds : [featureIds];
-    
-    const { data, error } = await supabase
-      .from('user_stories')
-      .select('*')
-      .in('feature_id', ids)
-      .order('created_at');
+      const ids = Array.isArray(featureIds) ? featureIds : [featureIds];
+      
+      const { data, error } = await supabase
+        .from('user_stories')
+        .select('*')
+        .in('feature_id', ids)
+        .order('created_at');
 
-    if (error) throw error;
-    setUserStories(data || []);
-  };
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: Boolean(featureIds && (Array.isArray(featureIds) ? featureIds.length > 0 : true)),
+  });
 
-  const addUserStory = async (storyData: CreateUserStoryData & { feature_id: string }) => {
-    const { data, error } = await supabase
-      .from('user_stories')
-      .insert([storyData])
-      .select()
-      .single();
+  const addUserStoryMutation = useMutation({
+    mutationFn: async (storyData: CreateUserStoryData & { feature_id: string }) => {
+      const { data, error } = await supabase
+        .from('user_stories')
+        .insert([storyData])
+        .select()
+        .single();
 
-    if (error) throw error;
-    setUserStories(prev => [...prev, data]);
-    return data;
-  };
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-stories'] });
+    },
+  });
 
-  const updateUserStory = async (storyId: string, updates: Partial<UserStory>) => {
-    const { data, error } = await supabase
-      .from('user_stories')
-      .update(updates)
-      .eq('id', storyId)
-      .select()
-      .single();
+  const updateUserStoryMutation = useMutation({
+    mutationFn: async ({ storyId, updates }: { storyId: string; updates: Partial<UserStory> }) => {
+      const { data, error } = await supabase
+        .from('user_stories')
+        .update(updates)
+        .eq('id', storyId)
+        .select()
+        .single();
 
-    if (error) throw error;
-    setUserStories(prev => prev.map(s => s.id === storyId ? data : s));
-    return data;
-  };
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-stories'] });
+    },
+  });
 
-  const deleteUserStory = async (storyId: string) => {
-    const { error } = await supabase
-      .from('user_stories')
-      .delete()
-      .eq('id', storyId);
+  const deleteUserStoryMutation = useMutation({
+    mutationFn: async (storyId: string) => {
+      const { error } = await supabase
+        .from('user_stories')
+        .delete()
+        .eq('id', storyId);
 
-    if (error) throw error;
-    setUserStories(prev => prev.filter(s => s.id !== storyId));
-  };
-
-  useEffect(() => {
-    fetchUserStories().finally(() => setLoading(false));
-  }, [JSON.stringify(featureIds)]);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-stories'] });
+    },
+  });
 
   return {
     userStories,
     loading,
-    addUserStory,
-    updateUserStory,
-    deleteUserStory,
-    refetch: fetchUserStories
+    addUserStory: addUserStoryMutation.mutate,
+    updateUserStory: updateUserStoryMutation.mutate,
+    deleteUserStory: deleteUserStoryMutation.mutate,
+    refetch
   };
 };
