@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -66,7 +67,7 @@ serve(async (req) => {
     } else {
       console.log('No structured phases found in PRD, using fallback logic');
       // Fallback to basic phase logic if no structured phases available
-      structuredPhases = this.createFallbackPhases(userStories || []);
+      structuredPhases = createFallbackPhases(userStories || []);
     }
 
     // Clear existing prompts for this project and platform
@@ -86,7 +87,7 @@ serve(async (req) => {
     console.log('✓ Successfully cleared existing prompts');
 
     // Generate prompts using the structured phases
-    const prompts = await this.generatePromptsWithStructuredPhases(
+    const prompts = await generatePromptsWithStructuredPhases(
       project, 
       features || [], 
       userStories || [], 
@@ -121,7 +122,7 @@ serve(async (req) => {
 
     // Save story prompts with accurate phase mapping
     for (const prompt of prompts.storyPrompts) {
-      const phaseNumber = this.mapStoryToPhase(prompt.userStoryTitle, structuredPhases);
+      const phaseNumber = mapStoryToPhase(prompt.userStoryTitle, structuredPhases);
       
       console.log(`💾 Saving story: "${prompt.title}" with phase_number: ${phaseNumber}, execution_order: ${prompt.execution_order}`);
       
