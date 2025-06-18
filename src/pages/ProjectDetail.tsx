@@ -13,7 +13,6 @@ import AIFeatureGenerationModal from '@/components/AIFeatureGenerationModal';
 import AddEditFeatureModal from '@/components/AddEditFeatureModal';
 import EditProjectModal from '@/components/EditProjectModal';
 import CollapsibleFeatureCard from '@/components/CollapsibleFeatureCard';
-import ExecutionOrderDisplay from '@/components/ExecutionOrderDisplay';
 import ProjectMetrics from '@/components/ProjectMetrics';
 import PRDTab from '@/components/PRDTab';
 import PromptsTab from '@/components/PromptsTab';
@@ -119,30 +118,6 @@ const ProjectDetail: React.FC = () => {
   const totalStories = userStories.length;
   const completedStories = userStories.filter(s => s.status === 'completed').length;
 
-  const mockExecutionPlan = {
-    totalStories: totalStories,
-    executionOrder: userStories
-      .sort((a, b) => (a.execution_order || 0) - (b.execution_order || 0))
-      .map(story => story.title),
-    estimatedTotalHours: userStories.reduce((sum, story) => sum + (story.estimated_hours || 0), 0),
-    phases: [
-      {
-        number: 1,
-        name: "Phase 1: Foundation",
-        stories: userStories.slice(0, Math.ceil(userStories.length / 2)).map(s => s.title),
-        estimatedHours: userStories.slice(0, Math.ceil(userStories.length / 2))
-          .reduce((sum, story) => sum + (story.estimated_hours || 0), 0)
-      },
-      {
-        number: 2,
-        name: "Phase 2: Implementation",
-        stories: userStories.slice(Math.ceil(userStories.length / 2)).map(s => s.title),
-        estimatedHours: userStories.slice(Math.ceil(userStories.length / 2))
-          .reduce((sum, story) => sum + (story.estimated_hours || 0), 0)
-      }
-    ]
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
       <ProjectHeader project={project} />
@@ -193,10 +168,9 @@ const ProjectDetail: React.FC = () => {
         {/* Main Content */}
         {hasFeatures ? (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full max-w-2xl grid-cols-5">
+            <TabsList className="grid w-full max-w-2xl grid-cols-4">
               <TabsTrigger value="metrics">Metrics</TabsTrigger>
               <TabsTrigger value="features">Features</TabsTrigger>
-              <TabsTrigger value="execution">Execution</TabsTrigger>
               <TabsTrigger value="prd">PRD</TabsTrigger>
               <TabsTrigger value="prompts">Prompts</TabsTrigger>
             </TabsList>
@@ -238,13 +212,6 @@ const ProjectDetail: React.FC = () => {
                   />
                 ))}
               </div>
-            </TabsContent>
-
-            <TabsContent value="execution" className="space-y-4">
-              <ExecutionOrderDisplay 
-                userStories={userStories}
-                executionPlan={mockExecutionPlan}
-              />
             </TabsContent>
 
             <TabsContent value="prd" className="space-y-4">
