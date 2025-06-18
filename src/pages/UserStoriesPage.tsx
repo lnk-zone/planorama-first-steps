@@ -73,7 +73,7 @@ const UserStoriesPage = () => {
     if (!editingStory) return;
     
     try {
-      await updateUserStory(editingStory.id, storyData);
+      await updateUserStory({ storyId: editingStory.id, updates: storyData });
       setEditingStory(null);
       toast({
         title: "User story updated",
