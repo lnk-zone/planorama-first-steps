@@ -1,8 +1,8 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -17,10 +17,6 @@ serve(async (req) => {
   }
 
   try {
-    if (!openAIApiKey) {
-      throw new Error('OpenAI API key not configured');
-    }
-
     const { projectId, platform } = await req.json();
     console.log(`Generating story prompts for project ${projectId}, platform: ${platform}`);
     
@@ -50,7 +46,7 @@ serve(async (req) => {
       .in('feature_id', features?.map(f => f.id) || [])
       .order('execution_order');
 
-    // Get structured phases from PRD metadata (new approach)
+    // Get structured phases from PRD metadata or generate fallback
     const { data: prd } = await supabase
       .from('prds')
       .select('metadata')
@@ -64,24 +60,23 @@ serve(async (req) => {
       structuredPhases = prd.metadata.implementationPhases;
       console.log('✓ Using structured phases from PRD:', structuredPhases.length, 'phases');
     } else {
-      console.log('No structured phases found in PRD, generating new ones...');
+      console.log('No structured phases found in PRD, generating fallback phases...');
       
-      // Generate structured phases on-the-fly using the new edge function
-      const projectData = {
-        project,
-        features: features || [],
-        userStories: userStories || []
-      };
-
+      // Generate structured phases using the existing edge function
       const { data: phasesResponse, error: phasesError } = await supabase
         .functions
         .invoke('generate-implementation-phases', {
-          body: { projectData }
+          body: { 
+            projectData: {
+              project,
+              features: features || [],
+              userStories: userStories || []
+            }
+          }
         });
 
       if (phasesError) {
         console.error('Failed to generate phases:', phasesError);
-        // Use fallback logic
         structuredPhases = createFallbackPhases(userStories || []);
       } else {
         structuredPhases = phasesResponse?.phases || [];
@@ -105,8 +100,8 @@ serve(async (req) => {
 
     console.log('✓ Successfully cleared existing prompts');
 
-    // Generate prompts using the structured phases
-    const prompts = await generatePromptsWithStructuredPhases(
+    // Generate prompts using templates instead of AI calls
+    const prompts = generatePromptsWithTemplates(
       project, 
       features || [], 
       userStories || [], 
@@ -293,8 +288,8 @@ function createFallbackPhases(userStories: any[]): any[] {
   return phases;
 }
 
-// Main generation function using structured phases
-async function generatePromptsWithStructuredPhases(
+// Main generation function using templates instead of AI calls
+function generatePromptsWithTemplates(
   project: any,
   features: any[],
   userStories: any[],
@@ -305,9 +300,9 @@ async function generatePromptsWithStructuredPhases(
   const storyPrompts = [];
   const transitionPrompts = [];
   
-  // Generate phase overview prompts based on structured phases
+  // Generate phase overview prompts using templates
   for (const phase of structuredPhases) {
-    const phasePrompt = await generatePhaseOverviewPrompt(project, phase, platform);
+    const phasePrompt = generatePhaseOverviewTemplate(project, phase, platform);
     phaseOverviews.push({
       title: `Phase ${phase.number} Overview: ${phase.name}`,
       content: phasePrompt,
@@ -316,10 +311,11 @@ async function generatePromptsWithStructuredPhases(
     });
   }
   
-  // Generate story prompts (execution order preserved)
+  // Generate story prompts using templates
   for (let i = 0; i < userStories.length; i++) {
     const story = userStories[i];
-    const storyPrompt = await generateStoryPrompt(project, story, features, platform);
+    const feature = features.find(f => f.id === story.feature_id);
+    const storyPrompt = generateStoryTemplate(project, story, feature, platform);
     storyPrompts.push({
       title: `Story ${i + 1}: ${story.title}`,
       content: storyPrompt,
@@ -329,13 +325,13 @@ async function generatePromptsWithStructuredPhases(
     });
   }
   
-  // Generate transition prompts between stories
+  // Generate transition prompts using templates
   for (let i = 0; i < userStories.length - 1; i++) {
     const currentStory = userStories[i];
     const nextStory = userStories[i + 1];
     const currentPhase = mapStoryToPhase(currentStory.title, structuredPhases);
     
-    const transitionPrompt = await generateTransitionPrompt(project, currentStory, nextStory, platform);
+    const transitionPrompt = generateTransitionTemplate(project, currentStory, nextStory, platform);
     transitionPrompts.push({
       title: `Transition: ${currentStory.title} → ${nextStory.title}`,
       content: transitionPrompt,
@@ -344,8 +340,8 @@ async function generatePromptsWithStructuredPhases(
     });
   }
   
-  // Generate troubleshooting guide
-  const troubleshootingGuide = await generateTroubleshootingGuide(project, platform);
+  // Generate troubleshooting guide using template
+  const troubleshootingGuide = generateTroubleshootingTemplate(project, platform);
   
   return {
     phaseOverviews,
@@ -355,132 +351,405 @@ async function generatePromptsWithStructuredPhases(
   };
 }
 
-async function generatePhaseOverviewPrompt(project: any, phase: any, platform: string): Promise<string> {
-  // Safe property access with fallbacks
+function generatePhaseOverviewTemplate(project: any, phase: any, platform: string): string {
   const phaseName = phase.name || `Phase ${phase.number}`;
   const deliverables = Array.isArray(phase.deliverables) ? phase.deliverables : [];
   const estimatedHours = phase.estimatedHours || phase.estimated_hours || 'Not specified';
   const description = phase.description || 'No description available';
 
-  const prompt = `Generate a comprehensive phase overview prompt for ${platform} development.
+  return `# ${phaseName} - Implementation Guide
 
-Project: ${project.title}
-Description: ${project.description}
+## Project Context
+**Project:** ${project.title}
+**Description:** ${project.description}
+**Platform:** ${platform}
 
-Phase Details:
-- ${phaseName}
-- Deliverables: ${deliverables.join(', ')}
-- Estimated Hours: ${estimatedHours}
-- Description: ${description}
+## Phase Overview
+**Phase:** ${phaseName}
+**Estimated Time:** ${estimatedHours} hours
+**Description:** ${description}
 
-Create a detailed prompt that:
-1. Explains the phase objectives and scope
-2. Lists all deliverables for this phase
-3. Provides context about how this phase fits into the overall project
-4. Includes specific technical guidance for ${platform}
-5. Mentions estimated time commitment
-6. Provides tips for success in this phase
+## Phase Objectives
+This phase focuses on implementing the following deliverables:
 
-Make it comprehensive and actionable for AI builder development.`;
+${deliverables.map((item: string, index: number) => `${index + 1}. ${item}`).join('\n')}
 
-  return await callOpenAI(prompt, 'phase_overview');
+## Implementation Strategy
+1. **Setup & Planning**
+   - Review all deliverables for this phase
+   - Ensure previous phase dependencies are complete
+   - Set up any necessary development environment configurations
+
+2. **Development Approach**
+   - Work through deliverables in the order listed above
+   - Test each component thoroughly before moving to the next
+   - Maintain clean, well-documented code throughout
+
+3. **${platform} Best Practices**
+   - Use proper component structure and naming conventions
+   - Implement responsive design principles
+   - Follow accessibility guidelines
+   - Optimize for performance
+
+## Phase Completion Criteria
+- All deliverables are fully implemented and tested
+- Code is clean, documented, and follows best practices
+- All functionality works as expected across different screen sizes
+- No critical bugs or issues remain
+
+## Tips for Success
+- Break down complex deliverables into smaller, manageable tasks
+- Test frequently during development
+- Keep the user experience at the forefront of all decisions
+- Don't hesitate to refactor code for clarity and maintainability
+
+Ready to start this phase? Begin with the first deliverable and work your way through the list systematically.`;
 }
 
-async function generateStoryPrompt(project: any, story: any, features: any[], platform: string): Promise<string> {
-  const feature = features.find(f => f.id === story.feature_id);
-  
-  const prompt = `Generate a comprehensive implementation prompt for this user story in ${platform}.
+function generateStoryTemplate(project: any, story: any, feature: any, platform: string): string {
+  const featureTitle = feature?.title || 'Unknown Feature';
+  const storyDescription = story.description || 'No description provided';
+  const acceptanceCriteria = story.acceptance_criteria?.join('\n- ') || 'Standard implementation and testing criteria';
+  const estimatedHours = story.estimated_hours || 'Not specified';
 
-Project Context: ${project.title} - ${project.description}
-Feature: ${feature?.title || 'Unknown Feature'}
-User Story: ${story.title}
-Description: ${story.description || 'No description provided'}
-Acceptance Criteria: ${story.acceptance_criteria?.join(', ') || 'None specified'}
-Estimated Hours: ${story.estimated_hours || 'Not specified'}
+  return `# User Story Implementation: ${story.title}
 
-Create a detailed, step-by-step implementation prompt that includes:
-1. Clear explanation of what needs to be built
-2. Technical requirements and considerations
-3. Step-by-step implementation guidance
-4. Code structure recommendations
-5. Testing considerations
-6. Common pitfalls to avoid
-7. ${platform}-specific best practices
+## Project Context
+**Project:** ${project.title}
+**Feature:** ${featureTitle}
+**Platform:** ${platform}
+**Estimated Time:** ${estimatedHours} hours
 
-Make it comprehensive enough for AI builders to implement successfully.`;
+## User Story Details
+**Story:** ${story.title}
+**Description:** ${storyDescription}
 
-  return await callOpenAI(prompt, 'story');
+## Acceptance Criteria
+- ${acceptanceCriteria}
+
+## Implementation Guide
+
+### Step 1: Analysis & Planning
+1. **Understand the Requirements**
+   - Review the user story and acceptance criteria carefully
+   - Identify the core functionality needed
+   - Consider how this fits into the overall application flow
+
+2. **Technical Planning**
+   - Determine which components need to be created or modified
+   - Identify any data models or API endpoints required
+   - Plan the user interface and user experience
+
+### Step 2: Development Setup
+1. **File Structure**
+   - Create or identify the relevant component files
+   - Set up any necessary utility functions or hooks
+   - Plan the component hierarchy
+
+2. **Dependencies**
+   - Ensure all required packages are available
+   - Import necessary UI components from the design system
+   - Set up any external integrations if needed
+
+### Step 3: Core Implementation
+1. **Component Development**
+   - Start with the basic component structure
+   - Implement the core functionality step by step
+   - Add proper TypeScript types and interfaces
+
+2. **State Management**
+   - Set up local component state as needed
+   - Implement any global state management if required
+   - Handle data flow between components
+
+3. **User Interface**
+   - Create a clean, intuitive user interface
+   - Ensure responsive design across all screen sizes
+   - Follow accessibility best practices
+
+### Step 4: Integration & Testing
+1. **Component Integration**
+   - Connect the component to the overall application
+   - Test all user interactions and edge cases
+   - Verify data persistence if applicable
+
+2. **Quality Assurance**
+   - Test across different browsers and devices
+   - Verify all acceptance criteria are met
+   - Check for any performance issues
+
+### Step 5: ${platform} Specific Considerations
+- **Performance:** Optimize for fast loading and smooth interactions
+- **Responsiveness:** Ensure the feature works well on mobile and desktop
+- **Accessibility:** Include proper ARIA labels and keyboard navigation
+- **Code Quality:** Write clean, maintainable code with proper documentation
+
+## Common Implementation Patterns
+- Use React hooks for state management and side effects
+- Implement proper error handling and loading states
+- Follow the established design system and component patterns
+- Ensure proper form validation where applicable
+
+## Testing Checklist
+- [ ] All acceptance criteria are met
+- [ ] Component renders correctly on different screen sizes
+- [ ] All user interactions work as expected
+- [ ] Error handling works properly
+- [ ] Data is saved/retrieved correctly
+- [ ] Performance is acceptable
+- [ ] Code is clean and well-documented
+
+## Success Criteria
+The user story is complete when:
+- All acceptance criteria are satisfied
+- The implementation follows best practices
+- The code is properly tested and documented
+- The feature integrates seamlessly with the rest of the application
+
+Ready to implement? Start with Step 1 and work through each phase systematically.`;
 }
 
-async function generateTransitionPrompt(project: any, currentStory: any, nextStory: any, platform: string): Promise<string> {
-  const prompt = `Generate a transition prompt for ${platform} development.
+function generateTransitionTemplate(project: any, currentStory: any, nextStory: any, platform: string): string {
+  return `# Transition Guide: ${currentStory.title} → ${nextStory.title}
 
-Project: ${project.title}
-Current Story: ${currentStory.title}
-Next Story: ${nextStory.title}
+## Project Context
+**Project:** ${project.title}
+**Platform:** ${platform}
+**Current Story:** ${currentStory.title}
+**Next Story:** ${nextStory.title}
 
-Create a prompt that:
-1. Summarizes what was accomplished in the current story
-2. Explains how it connects to the next story
-3. Identifies any dependencies or prerequisites
-4. Provides guidance on refactoring or cleanup needed
-5. Suggests testing before moving forward
-6. ${platform}-specific transition considerations
+## Transition Checklist
 
-Keep it concise but thorough.`;
+### 1. Complete Current Story
+Before moving to the next story, ensure:
+- [ ] All functionality from "${currentStory.title}" is fully implemented
+- [ ] All acceptance criteria have been met and tested
+- [ ] Code is clean, documented, and follows best practices
+- [ ] No critical bugs or issues remain
 
-  return await callOpenAI(prompt, 'transition');
+### 2. Code Review & Cleanup
+- [ ] Review the code for any potential improvements
+- [ ] Remove any console.log statements or debugging code
+- [ ] Ensure proper error handling is in place
+- [ ] Verify that all TypeScript types are correctly defined
+
+### 3. Testing & Validation
+- [ ] Test the completed functionality across different devices
+- [ ] Verify integration with existing features
+- [ ] Check for any regression issues
+- [ ] Validate that performance remains optimal
+
+### 4. Preparation for Next Story
+- [ ] Review the requirements for "${nextStory.title}"
+- [ ] Identify any dependencies or prerequisites
+- [ ] Consider how the next story will build upon current work
+- [ ] Plan the implementation approach
+
+### 5. ${platform} Specific Checks
+- [ ] Ensure responsive design is working properly
+- [ ] Verify accessibility features are functioning
+- [ ] Check that all UI components are consistent with the design system
+- [ ] Validate that the code follows platform best practices
+
+## Technical Considerations
+- **Data Flow:** Ensure any data changes from the current story are properly handled
+- **State Management:** Verify that component state is properly managed and cleaned up
+- **API Integration:** Check that any API calls are working correctly and handling errors
+- **UI Consistency:** Maintain consistent styling and interaction patterns
+
+## Next Steps
+Once you've completed this transition checklist:
+1. Commit your current changes with a clear commit message
+2. Take a moment to review the overall application flow
+3. Begin planning the implementation of "${nextStory.title}"
+4. Start the next story with a fresh perspective and clear objectives
+
+Remember: Quality over speed. It's better to have fewer, well-implemented features than many incomplete ones.
+
+Ready to move to the next story? Ensure all items in the checklist above are completed first.`;
 }
 
-async function generateTroubleshootingGuide(project: any, platform: string): Promise<string> {
-  const prompt = `Generate a comprehensive troubleshooting guide for ${platform} development.
+function generateTroubleshootingTemplate(project: any, platform: string): string {
+  return `# Troubleshooting Guide - ${project.title}
 
-Project: ${project.title}
-Type: ${project.project_type}
+## Project Context
+**Project:** ${project.title}
+**Platform:** ${platform}
+**Project Type:** ${project.project_type || 'Web Application'}
 
-Create a troubleshooting guide that covers:
-1. Common ${platform} development issues
-2. Environment setup problems
-3. Database connection issues
-4. Authentication problems
-5. Deployment challenges
-6. Performance optimization tips
-7. Debugging strategies
-8. Best practices for ${platform}
+## Common Issues & Solutions
 
-Make it practical and actionable for developers using AI builders.`;
+### 1. Build & Compilation Issues
 
-  return await callOpenAI(prompt, 'troubleshooting');
-}
+**Problem:** TypeScript compilation errors
+**Solutions:**
+- Check for missing type definitions in interfaces
+- Ensure all imports have correct file paths
+- Verify that all required props are passed to components
+- Check for unused variables or imports
 
-async function callOpenAI(prompt: string, type: string): Promise<string> {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openAIApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: `You are an expert software architect and technical writer specializing in AI-assisted development. You create comprehensive, actionable prompts for AI builders.`
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      max_tokens: 4000,
-      temperature: 0.3
-    }),
-  });
+**Problem:** Module not found errors
+**Solutions:**
+- Verify import paths are correct (case-sensitive)
+- Check that all required dependencies are installed
+- Ensure file extensions are correct (.tsx for JSX, .ts for TypeScript)
+- Clear the build cache and restart the development server
 
-  if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
-  }
+### 2. React Component Issues
 
-  const data = await response.json();
-  return data.choices[0].message.content;
+**Problem:** Component not rendering
+**Solutions:**
+- Check that the component is properly exported and imported
+- Verify JSX syntax is correct (proper closing tags, fragments)
+- Ensure all required props are provided
+- Check for conditional rendering logic errors
+
+**Problem:** State not updating
+**Solutions:**
+- Verify useState is imported from React
+- Check that state setter functions are called correctly
+- Ensure state updates are not mutating the original state
+- Use useEffect dependencies correctly
+
+### 3. Styling & UI Issues
+
+**Problem:** Tailwind classes not working
+**Solutions:**
+- Verify Tailwind CSS is properly configured
+- Check for typos in class names
+- Ensure responsive prefixes are correct (sm:, md:, lg:)
+- Clear browser cache and restart development server
+
+**Problem:** Layout not responsive
+**Solutions:**
+- Use Tailwind responsive utilities (sm:, md:, lg:, xl:)
+- Test on different screen sizes during development
+- Use flexbox and grid utilities appropriately
+- Check for fixed widths that might break on mobile
+
+### 4. Data & API Issues
+
+**Problem:** Data not loading
+**Solutions:**
+- Check network tab in browser dev tools for API errors
+- Verify API endpoints are correct
+- Ensure proper error handling is implemented
+- Check for authentication issues
+
+**Problem:** Form submission issues
+**Solutions:**
+- Verify form validation logic
+- Check that all required fields are properly handled
+- Ensure form data is being serialized correctly
+- Test both success and error scenarios
+
+### 5. ${platform} Specific Issues
+
+**Development Environment:**
+- Clear browser cache and cookies
+- Restart the development server
+- Check browser console for JavaScript errors
+- Update dependencies if needed
+
+**Performance Issues:**
+- Optimize component re-renders with React.memo
+- Use proper dependency arrays in useEffect hooks
+- Lazy load components where appropriate
+- Optimize images and assets
+
+### 6. Authentication & Security
+
+**Problem:** User authentication not working
+**Solutions:**
+- Check authentication provider configuration
+- Verify API keys and credentials are correct
+- Ensure proper session management
+- Test login/logout flows thoroughly
+
+**Problem:** Authorization issues
+**Solutions:**
+- Check user permissions and roles
+- Verify protected route configurations
+- Ensure proper access control implementation
+- Test with different user types
+
+### 7. Database & Storage Issues
+
+**Problem:** Data not persisting
+**Solutions:**
+- Check database connection configuration
+- Verify table schemas and relationships
+- Ensure proper error handling for database operations
+- Check for transaction rollbacks
+
+**Problem:** Query performance issues
+**Solutions:**
+- Review database indexes
+- Optimize query structure
+- Consider pagination for large datasets
+- Monitor query execution times
+
+## Debugging Strategies
+
+### 1. Browser Developer Tools
+- **Console:** Check for JavaScript errors and logs
+- **Network:** Monitor API calls and responses
+- **Elements:** Inspect HTML structure and CSS
+- **Sources:** Set breakpoints and debug JavaScript
+
+### 2. React Developer Tools
+- Inspect component props and state
+- Monitor component re-renders
+- Check component hierarchy
+- Debug hooks and context
+
+### 3. Code Review Checklist
+- [ ] All imports are correct and necessary
+- [ ] Components are properly structured
+- [ ] State management is appropriate
+- [ ] Error handling is implemented
+- [ ] Code follows project conventions
+- [ ] Performance considerations are addressed
+
+### 4. Testing Approach
+- Test individual components in isolation
+- Verify integration between components
+- Test different user scenarios
+- Check edge cases and error conditions
+- Validate across different browsers and devices
+
+## Getting Help
+
+If you're still stuck after trying these solutions:
+
+1. **Check the Documentation**
+   - Review framework-specific documentation
+   - Check component library documentation
+   - Look for similar issues in community forums
+
+2. **Debugging Steps**
+   - Isolate the problem to a specific component or function
+   - Create a minimal reproduction of the issue
+   - Check recent changes that might have caused the problem
+   - Test with different data or user scenarios
+
+3. **Code Review**
+   - Review recent commits for potential issues
+   - Check for any missing dependencies or configurations
+   - Verify that all environment variables are set correctly
+   - Ensure proper error handling is in place
+
+Remember: Most issues are caused by simple mistakes like typos, missing imports, or incorrect prop passing. Start with the basics and work your way up to more complex debugging.
+
+## Best Practices to Prevent Issues
+
+- Write clean, well-documented code
+- Test functionality as you build it
+- Use TypeScript properly with correct types
+- Follow consistent naming conventions
+- Implement proper error handling from the start
+- Keep components small and focused
+- Use version control effectively with clear commit messages
+
+Happy debugging! 🐛→🚀`;
 }
