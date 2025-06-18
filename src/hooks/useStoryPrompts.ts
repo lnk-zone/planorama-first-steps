@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -124,7 +123,8 @@ export const useStoryPrompts = (projectId: string, platform: string) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      const { data, error } = await supabase
+      // Insert into story_completions table
+      const { data: completionData, error: completionError } = await supabase
         .from('story_completions')
         .insert({
           project_id: projectId,
@@ -134,11 +134,22 @@ export const useStoryPrompts = (projectId: string, platform: string) => {
           notes
         });
 
-      if (error) throw error;
-      return data;
+      if (completionError) throw completionError;
+
+      // Also update the user_stories.status to 'completed' for consistency
+      const { error: statusError } = await supabase
+        .from('user_stories')
+        .update({ status: 'completed' })
+        .eq('id', storyId);
+
+      if (statusError) throw statusError;
+
+      return completionData;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['story-completions', projectId, platform] });
+      // Also invalidate user stories queries to update the project details progress
+      queryClient.invalidateQueries({ queryKey: ['user-stories'] });
       toast({
         title: "Story marked as complete",
         description: "Great progress! Keep going.",
@@ -159,7 +170,8 @@ export const useStoryPrompts = (projectId: string, platform: string) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      const { error } = await supabase
+      // Remove from story_completions table
+      const { error: completionError } = await supabase
         .from('story_completions')
         .delete()
         .eq('project_id', projectId)
@@ -167,10 +179,20 @@ export const useStoryPrompts = (projectId: string, platform: string) => {
         .eq('user_id', user.id)
         .eq('platform', platform);
 
-      if (error) throw error;
+      if (completionError) throw completionError;
+
+      // Also update the user_stories.status back to 'draft' or 'in_progress'
+      const { error: statusError } = await supabase
+        .from('user_stories')
+        .update({ status: 'draft' })
+        .eq('id', storyId);
+
+      if (statusError) throw statusError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['story-completions', projectId, platform] });
+      // Also invalidate user stories queries to update the project details progress
+      queryClient.invalidateQueries({ queryKey: ['user-stories'] });
       toast({
         title: "Story unmarked",
         description: "Story completion status updated.",
