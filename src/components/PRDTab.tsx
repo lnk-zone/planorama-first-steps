@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -219,34 +220,6 @@ const PRDTab: React.FC<PRDTabProps> = ({ projectTitle, projectDescription }) => 
             )}
           </Button>
         </div>
-      </div>
-
-      {/* PRD Metadata */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-blue-600">{prd.metadata.totalFeatures}</div>
-            <p className="text-sm text-gray-600">Features</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-green-600">{prd.metadata.totalUserStories}</div>
-            <p className="text-sm text-gray-600">User Stories</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-purple-600">{prd.metadata.estimatedDevelopmentTime}h</div>
-            <p className="text-sm text-gray-600">Est. Hours</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-orange-600">{prd.metadata.phases}</div>
-            <p className="text-sm text-gray-600">Phases</p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* PRD Content */}
