@@ -23,6 +23,7 @@ export interface ImplementationPhase {
   deliverables: string[];
   estimatedHours: number;
   description: string;
+  [key: string]: any; // Add index signature for JSON compatibility
 }
 
 export interface PRDSection {
@@ -345,6 +346,13 @@ export class PRDGenerator {
       .eq('id', projectId)
       .single();
 
+    // Convert to JSON-compatible format
+    const metadata = {
+      wordCount: content.split(' ').length,
+      sectionCount: sections.length,
+      implementationPhases: implementationPhases as any[] // Type assertion for JSON compatibility
+    };
+
     const { data, error } = await supabase
       .from('prds')
       .insert({
@@ -356,11 +364,7 @@ export class PRDGenerator {
           acc[section.name] = section.content;
           return acc;
         }, {} as Record<string, string>),
-        metadata: {
-          wordCount: content.split(' ').length,
-          sectionCount: sections.length,
-          implementationPhases: implementationPhases // Store structured phases in metadata
-        }
+        metadata
       })
       .select()
       .single();
@@ -399,8 +403,14 @@ export class PRDGenerator {
 
     if (!data) return null;
 
-    // Extract implementation phases from metadata
-    const implementationPhases = data.metadata?.implementationPhases || [];
+    // Extract implementation phases from metadata with proper type assertion
+    let implementationPhases: ImplementationPhase[] = [];
+    if (data.metadata && typeof data.metadata === 'object') {
+      const metadata = data.metadata as any;
+      if (metadata.implementationPhases && Array.isArray(metadata.implementationPhases)) {
+        implementationPhases = metadata.implementationPhases;
+      }
+    }
 
     return {
       id: data.id,
