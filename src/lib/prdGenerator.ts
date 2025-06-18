@@ -14,7 +14,7 @@ export interface PRDDocument {
     estimatedDevelopmentTime: number;
     phases: number;
   };
-  implementationPhases?: ImplementationPhase[]; // New field for structured phases
+  implementationPhases?: ImplementationPhase[];
 }
 
 export interface ImplementationPhase {
@@ -23,7 +23,6 @@ export interface ImplementationPhase {
   deliverables: string[];
   estimatedHours: number;
   description: string;
-  [key: string]: any; // Add index signature for JSON compatibility
 }
 
 export interface PRDSection {
@@ -48,19 +47,40 @@ export class PRDGenerator {
     const projectData = await this.gatherEnhancedProjectData(projectId);
     
     try {
-      console.log('Calling enhanced generate-prd edge function...');
+      console.log('Step 1: Generating structured implementation phases...');
       
+      // First, generate structured phases
+      const { data: phasesResponse, error: phasesError } = await supabase
+        .functions
+        .invoke('generate-implementation-phases', {
+          body: { projectData }
+        });
+
+      if (phasesError) {
+        console.error('Phase generation error:', phasesError);
+        throw new Error(`Failed to generate implementation phases: ${phasesError.message}`);
+      }
+
+      const implementationPhases: ImplementationPhase[] = phasesResponse?.phases || [];
+      console.log('✓ Generated', implementationPhases.length, 'structured phases');
+      
+      console.log('Step 2: Generating PRD with structured phases...');
+      
+      // Then generate PRD using the structured phases
       const { data: prdResponse, error: functionError } = await supabase
         .functions
         .invoke('generate-prd', {
           body: {
-            projectData,
+            projectData: {
+              ...projectData,
+              structuredPhases: implementationPhases // Pass structured phases to PRD generator
+            },
             template
           }
         });
 
       if (functionError) {
-        console.error('Edge function error:', functionError);
+        console.error('PRD generation error:', functionError);
         throw new Error(`Failed to generate PRD: ${functionError.message}`);
       }
 
@@ -70,36 +90,6 @@ export class PRDGenerator {
 
       const prdContent = prdResponse.content;
       const sections = this.parsePRDSections(prdContent);
-      
-      // NEW: Extract implementation phases from the PRD content
-      console.log('Extracting implementation phases from PRD...');
-      let implementationPhases: ImplementationPhase[] = [];
-      
-      try {
-        const implementationRoadmapSection = this.extractImplementationRoadmapSection(prdContent);
-        
-        if (implementationRoadmapSection) {
-          const { data: phasesResponse, error: phasesError } = await supabase
-            .functions
-            .invoke('extract-implementation-phases', {
-              body: {
-                implementationRoadmapText: implementationRoadmapSection,
-                userStories: projectData.userStories
-              }
-            });
-
-          if (phasesError) {
-            console.error('Phase extraction error:', phasesError);
-            console.warn('Continuing without structured phases - will use fallback logic');
-          } else if (phasesResponse?.phases) {
-            implementationPhases = phasesResponse.phases;
-            console.log('Successfully extracted', implementationPhases.length, 'implementation phases');
-          }
-        }
-      } catch (phaseError) {
-        console.error('Failed to extract implementation phases:', phaseError);
-        console.warn('Continuing without structured phases - will use fallback logic');
-      }
       
       const prdRecord = await this.savePRDToDatabase(
         projectId, 
@@ -121,7 +111,7 @@ export class PRDGenerator {
           totalFeatures: projectData.features.length,
           totalUserStories: projectData.userStories.length,
           estimatedDevelopmentTime: projectData.executionPlan.estimatedTotalHours,
-          phases: implementationPhases.length || projectData.executionPlan.phases.length
+          phases: implementationPhases.length
         },
         implementationPhases
       };
@@ -350,7 +340,7 @@ export class PRDGenerator {
     const metadata = {
       wordCount: content.split(' ').length,
       sectionCount: sections.length,
-      implementationPhases: implementationPhases as any[] // Type assertion for JSON compatibility
+      implementationPhases: implementationPhases as any[]
     };
 
     const { data, error } = await supabase

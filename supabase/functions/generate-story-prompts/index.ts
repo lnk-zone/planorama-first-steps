@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -51,7 +50,7 @@ serve(async (req) => {
       .in('feature_id', features?.map(f => f.id) || [])
       .order('execution_order');
 
-    // NEW: Fetch structured implementation phases from PRD
+    // Get structured phases from PRD metadata (new approach)
     const { data: prd } = await supabase
       .from('prds')
       .select('metadata')
@@ -63,11 +62,31 @@ serve(async (req) => {
     let structuredPhases: any[] = [];
     if (prd?.metadata?.implementationPhases) {
       structuredPhases = prd.metadata.implementationPhases;
-      console.log('Using structured phases from PRD:', structuredPhases.length, 'phases');
+      console.log('✓ Using structured phases from PRD:', structuredPhases.length, 'phases');
     } else {
-      console.log('No structured phases found in PRD, using fallback logic');
-      // Fallback to basic phase logic if no structured phases available
-      structuredPhases = createFallbackPhases(userStories || []);
+      console.log('No structured phases found in PRD, generating new ones...');
+      
+      // Generate structured phases on-the-fly using the new edge function
+      const projectData = {
+        project,
+        features: features || [],
+        userStories: userStories || []
+      };
+
+      const { data: phasesResponse, error: phasesError } = await supabase
+        .functions
+        .invoke('generate-implementation-phases', {
+          body: { projectData }
+        });
+
+      if (phasesError) {
+        console.error('Failed to generate phases:', phasesError);
+        // Use fallback logic
+        structuredPhases = createFallbackPhases(userStories || []);
+      } else {
+        structuredPhases = phasesResponse?.phases || [];
+        console.log('✓ Generated structured phases on-the-fly:', structuredPhases.length, 'phases');
+      }
     }
 
     // Clear existing prompts for this project and platform
@@ -136,8 +155,6 @@ serve(async (req) => {
         execution_order: prompt.execution_order,
         phase_number: phaseNumber
       };
-      
-      console.log(`Database insert data for "${prompt.title}": { phase_number: ${phaseNumber}, execution_order: ${prompt.execution_order}, prompt_type: "${insertData.prompt_type}" }`);
       
       const { error } = await supabase
         .from('generated_prompts')
@@ -339,16 +356,22 @@ async function generatePromptsWithStructuredPhases(
 }
 
 async function generatePhaseOverviewPrompt(project: any, phase: any, platform: string): Promise<string> {
+  // Safe property access with fallbacks
+  const phaseName = phase.name || `Phase ${phase.number}`;
+  const deliverables = Array.isArray(phase.deliverables) ? phase.deliverables : [];
+  const estimatedHours = phase.estimatedHours || phase.estimated_hours || 'Not specified';
+  const description = phase.description || 'No description available';
+
   const prompt = `Generate a comprehensive phase overview prompt for ${platform} development.
 
 Project: ${project.title}
 Description: ${project.description}
 
 Phase Details:
-- ${phase.name}
-- Deliverables: ${phase.deliverables.join(', ')}
-- Estimated Hours: ${phase.estimatedHours}
-- Description: ${phase.description}
+- ${phaseName}
+- Deliverables: ${deliverables.join(', ')}
+- Estimated Hours: ${estimatedHours}
+- Description: ${description}
 
 Create a detailed prompt that:
 1. Explains the phase objectives and scope

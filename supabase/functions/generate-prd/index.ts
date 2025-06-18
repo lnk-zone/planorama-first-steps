@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0';
 
@@ -7,24 +6,30 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface PRDGenerationRequest {
+interface PRD GenerationRequest {
   projectData: {
     project: any;
     features: any[];
     userStories: any[];
     executionPlan: any;
+    structuredPhases?: any[]; // New field for structured phases
   };
   template: 'comprehensive' | 'technical' | 'business' | 'ai_builder';
 }
 
 const buildEnhancedPRDPrompt = (projectData: any, template: string): string => {
-  const { project, features, userStories, executionPlan } = projectData;
+  const { project, features, userStories, executionPlan, structuredPhases } = projectData;
   
   // Extract enhanced context if available
   const projectTitle = project.title || 'Untitled Project';
   const projectDescription = project.description || 'No description provided';
   const appType = project.project_type || 'web application';
   
+  // Use structured phases for implementation roadmap
+  const implementationRoadmapSection = structuredPhases ? 
+    generateStructuredImplementationRoadmap(structuredPhases) :
+    generateFallbackImplementationRoadmap(executionPlan);
+
   // Analyze features to extract context
   const authFeatures = features.filter((f: any) => 
     f.category === 'auth' || 
@@ -107,20 +112,6 @@ You are a senior product manager creating a comprehensive Product Requirements D
 DOCUMENT REQUIREMENTS:
 This PRD will serve as the official roadmap document for non-technical stakeholders who need complete information to understand and approve the project. Please ensure every section is thoroughly detailed and professionally written.
 
-Quality Guidelines:
-- Please provide complete specifications for every feature without summarization
-- Write out all user stories with detailed acceptance criteria 
-- Ensure each feature has comprehensive implementation details
-- Target 4,000-6,000 words for a thorough, professional document
-- Use clear, actionable language suitable for stakeholders
-- Include specific technical considerations to help non-technical users understand scope
-
-Please avoid using shortcuts like:
-- "...and so on" or "etc."
-- "Additional features include..." without listing them
-- "Similar patterns apply..." without explanation
-- Any form of truncation that leaves information incomplete
-
 ${templateInstructions[template as keyof typeof templateInstructions] || templateInstructions.ai_builder}
 
 PROJECT CONTEXT:
@@ -131,14 +122,8 @@ PROJECT CONTEXT:
 **Development Overview:**
 - Total Features: ${features.length}
 - User Stories: ${userStories.length}
-- Estimated Development: ${totalEstimatedHours} hours
-- Average Story Complexity: ${avgStoryComplexity.toFixed(1)}/3
-- Development Phases: ${executionPlan.phases?.length || 3}
-
-**Feature Categories:**
-- Authentication Features: ${authFeatures.length}
-- Core Business Features: ${coreFeatures.length}
-- Integration Features: ${integrationFeatures.length}
+- Estimated Development: ${userStories.reduce((sum: number, story: any) => sum + (story.estimated_hours || 4), 0)} hours
+- Development Phases: ${structuredPhases?.length || executionPlan.phases?.length || 3}
 
 **Complete Features List:**
 ${features.map((feature: any, index: number) => `
@@ -157,28 +142,21 @@ ${index + 1}. **${story.title}**
    - Estimated Time: ${story.estimated_hours || 4} hours
    - Related Feature: ${features.find((f: any) => f.id === story.feature_id)?.title || 'Core Feature'}
    - Acceptance Criteria: ${story.acceptance_criteria?.length > 0 ? story.acceptance_criteria.join('; ') : 'Standard completion and testing criteria'}
-   - Dependencies: ${story.dependencies?.length > 0 ? JSON.stringify(story.dependencies) : 'No blocking dependencies'}
 `).join('')}
 
-**Execution Plan Overview:**
-${executionPlan.phases?.map((phase: any) => `
-**${phase.name}** (${phase.estimatedHours} hours)
-- Phase Number: ${phase.number}
-- Stories Included: ${phase.stories?.length || 0}
-- Key Deliverables: ${phase.stories?.join(', ') || 'Core development milestones'}
-- Phase Description: ${phase.description || 'Implementation of core features and functionality'}
-`).join('') || 'Structured development approach with logical phases'}
+**STRUCTURED IMPLEMENTATION ROADMAP:**
+${implementationRoadmapSection}
 
 Please create a comprehensive PRD with the following sections, ensuring each is thoroughly detailed:
 
 ## 1. Executive Summary
-Please provide a comprehensive project overview including business case (approximately 300 words), key objectives and success criteria (approximately 200 words), high-level timeline and resource requirements (approximately 200 words), and expected ROI and business impact (approximately 200 words).
+Please provide a comprehensive project overview including business case, key objectives and success criteria, high-level timeline and resource requirements, and expected ROI and business impact.
 
 ## 2. Product Overview
-Please include detailed product vision and positioning (approximately 300 words), target market and user base analysis (approximately 300 words), core value proposition and competitive advantages (approximately 250 words), and product goals with measurable objectives (approximately 250 words).
+Please include detailed product vision and positioning, target market and user base analysis, core value proposition and competitive advantages, and product goals with measurable objectives.
 
 ## 3. Target Users & Use Cases
-Please provide detailed primary user personas with demographics (approximately 400 words), complete user journey mapping and workflows (approximately 400 words), comprehensive use cases and scenarios (approximately 300 words), and user needs analysis with pain points addressed (approximately 300 words).
+Please provide detailed primary user personas with demographics, complete user journey mapping and workflows, comprehensive use cases and scenarios, and user needs analysis with pain points addressed.
 
 ## 4. Feature Specifications
 For each of the ${features.length} features, please provide a complete specification including:
@@ -187,32 +165,31 @@ For each of the ${features.length} features, please provide a complete specifica
 - Technical implementation considerations and requirements
 - Dependencies and integration requirements
 - Success metrics and testing criteria
-- Risk factors and mitigation strategies
 
 Please write out specifications for all ${features.length} features completely without summarization.
 
 ## 5. Technical Requirements
-Please provide comprehensive system architecture overview (approximately 400 words), complete technology stack recommendations with justifications (approximately 300 words), detailed security and compliance requirements (approximately 300 words), performance and scalability specifications with metrics (approximately 300 words), and integration requirements with API specifications (approximately 300 words).
+Please provide comprehensive system architecture overview, complete technology stack recommendations with justifications, detailed security and compliance requirements, performance and scalability specifications with metrics, and integration requirements with API specifications.
 
 ## 6. Implementation Roadmap
-Please include detailed development phases with specific timelines (approximately 400 words), complete milestone definitions and deliverables for each phase (approximately 400 words), resource requirements and team structure recommendations (approximately 300 words), and comprehensive risk assessment with mitigation strategies (approximately 400 words).
+${implementationRoadmapSection}
 
 ## 7. Success Metrics & Analytics
-Please provide Key Performance Indicators (KPIs) with measurement methods (approximately 300 words), user engagement metrics and tracking implementation (approximately 250 words), business success criteria and ROI calculations (approximately 250 words), and analytics and tracking requirements with tools specification (approximately 250 words).
+Please provide Key Performance Indicators (KPIs) with measurement methods, user engagement metrics and tracking implementation, business success criteria and ROI calculations, and analytics and tracking requirements with tools specification.
 
 ## 8. User Experience Guidelines
-Please include design principles and guidelines with examples (approximately 300 words), user interface requirements and interaction patterns (approximately 300 words), accessibility considerations and compliance standards (approximately 250 words), and mobile and responsive design requirements (approximately 250 words).
+Please include design principles and guidelines with examples, user interface requirements and interaction patterns, accessibility considerations and compliance standards, and mobile and responsive design requirements.
 
 ${template === 'ai_builder' ? `
 ## 9. AI Builder Implementation Guide
-Please provide Lovable/Bolt/Cursor specific considerations and best practices (approximately 400 words), recommended implementation sequence with detailed steps (approximately 400 words), copy-paste ready specifications for each feature (approximately 500 words), common pitfalls and solutions with specific examples (approximately 300 words), and testing and validation approaches for AI-built applications (approximately 300 words).
+Please provide Lovable/Bolt/Cursor specific considerations and best practices, recommended implementation sequence with detailed steps, copy-paste ready specifications for each feature, common pitfalls and solutions with specific examples, and testing and validation approaches for AI-built applications.
 
 ## 10. Phase-by-Phase Development Plan
-Please include detailed breakdown of each development phase with specific tasks (approximately 500 words), prerequisites and dependencies for each phase (approximately 300 words), AI builder session recommendations and time estimates (approximately 300 words), and quality assurance checkpoints with validation criteria (approximately 300 words).
+Please include detailed breakdown of each development phase with specific tasks, prerequisites and dependencies for each phase, AI builder session recommendations and time estimates, and quality assurance checkpoints with validation criteria.
 ` : ''}
 
 ## ${template === 'ai_builder' ? '11' : '9'}. Out of Scope
-Please provide features explicitly not included in this version with explanations (approximately 200 words), future considerations and product roadmap beyond initial release (approximately 200 words), and known limitations and constraints with impact analysis (approximately 200 words).
+Please provide features explicitly not included in this version with explanations, future considerations and product roadmap beyond initial release, and known limitations and constraints with impact analysis.
 
 DELIVERABLE SPECIFICATIONS:
 - Create a well-structured, professional PRD document in markdown format
@@ -222,9 +199,56 @@ DELIVERABLE SPECIFICATIONS:
 - Ensure every feature and user story is completely detailed
 - Include implementation guidance that development teams can follow immediately
 
-This document will serve as the definitive guide for building this ${appType} application with ${features.length} features and ${userStories.length} user stories. Please ensure every section is complete and provides the detailed information stakeholders need to understand and approve the project.
+This document will serve as the definitive guide for building this ${appType} application with ${features.length} features and ${userStories.length} user stories.
   `.trim();
 };
+
+function generateStructuredImplementationRoadmap(phases: any[]): string {
+  if (!phases || phases.length === 0) {
+    return "No structured phases available.";
+  }
+
+  return `
+The implementation will be executed in ${phases.length} carefully planned phases:
+
+${phases.map((phase: any) => `
+### ${phase.name} (${phase.estimatedHours || 0} hours)
+
+**Phase Objective:** ${phase.description || `Complete ${phase.name}`}
+
+**Key Deliverables:**
+${(phase.deliverables || []).map((deliverable: string) => `- ${deliverable}`).join('\n')}
+
+**Estimated Timeline:** ${phase.estimatedHours || 0} hours
+**Dependencies:** Prerequisites from previous phases must be completed
+**Success Criteria:** All deliverables tested and functioning as specified
+`).join('\n')}
+
+**Phase Sequencing Logic:**
+- Each phase builds upon the foundation established in previous phases
+- Dependencies are carefully managed to ensure smooth progression
+- Testing and validation checkpoints occur at the end of each phase
+- User stories are grouped logically to maximize development efficiency
+
+**Total Estimated Timeline:** ${phases.reduce((sum: number, phase: any) => sum + (phase.estimatedHours || 0), 0)} hours across ${phases.length} phases
+`.trim();
+}
+
+function generateFallbackImplementationRoadmap(executionPlan: any): string {
+  if (!executionPlan?.phases) {
+    return "Implementation roadmap will be determined based on feature priorities and dependencies.";
+  }
+
+  return `
+${executionPlan.phases?.map((phase: any) => `
+**${phase.name}** (${phase.estimatedHours} hours)
+- Phase Number: ${phase.number}
+- Stories Included: ${phase.stories?.length || 0}
+- Key Deliverables: ${phase.stories?.join(', ') || 'Core development milestones'}
+- Phase Description: ${phase.description || 'Implementation of core features and functionality'}
+`).join('') || 'Structured development approach with logical phases'}
+`.trim();
+}
 
 const validatePRDResponse = (content: string): { isValid: boolean; issues: string[] } => {
   const issues: string[] = [];
@@ -290,10 +314,11 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error('OpenAI API key not configured');
     }
 
-    console.log('Generating comprehensive PRD with professional approach...');
+    console.log('Generating comprehensive PRD with structured phases...');
     console.log('Template:', template);
     console.log('Features count:', projectData.features.length);
     console.log('User stories count:', projectData.userStories.length);
+    console.log('Structured phases:', projectData.structuredPhases?.length || 0);
 
     const prompt = buildEnhancedPRDPrompt(projectData, template);
 
