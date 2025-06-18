@@ -14,6 +14,15 @@ export interface PRDDocument {
     estimatedDevelopmentTime: number;
     phases: number;
   };
+  implementationPhases?: ImplementationPhase[]; // New field for structured phases
+}
+
+export interface ImplementationPhase {
+  number: number;
+  name: string;
+  deliverables: string[];
+  estimatedHours: number;
+  description: string;
 }
 
 export interface PRDSection {
@@ -61,7 +70,43 @@ export class PRDGenerator {
       const prdContent = prdResponse.content;
       const sections = this.parsePRDSections(prdContent);
       
-      const prdRecord = await this.savePRDToDatabase(projectId, prdContent, template, sections);
+      // NEW: Extract implementation phases from the PRD content
+      console.log('Extracting implementation phases from PRD...');
+      let implementationPhases: ImplementationPhase[] = [];
+      
+      try {
+        const implementationRoadmapSection = this.extractImplementationRoadmapSection(prdContent);
+        
+        if (implementationRoadmapSection) {
+          const { data: phasesResponse, error: phasesError } = await supabase
+            .functions
+            .invoke('extract-implementation-phases', {
+              body: {
+                implementationRoadmapText: implementationRoadmapSection,
+                userStories: projectData.userStories
+              }
+            });
+
+          if (phasesError) {
+            console.error('Phase extraction error:', phasesError);
+            console.warn('Continuing without structured phases - will use fallback logic');
+          } else if (phasesResponse?.phases) {
+            implementationPhases = phasesResponse.phases;
+            console.log('Successfully extracted', implementationPhases.length, 'implementation phases');
+          }
+        }
+      } catch (phaseError) {
+        console.error('Failed to extract implementation phases:', phaseError);
+        console.warn('Continuing without structured phases - will use fallback logic');
+      }
+      
+      const prdRecord = await this.savePRDToDatabase(
+        projectId, 
+        prdContent, 
+        template, 
+        sections, 
+        implementationPhases
+      );
       await this.savePRDSections(prdRecord.id, sections);
       
       return {
@@ -75,14 +120,41 @@ export class PRDGenerator {
           totalFeatures: projectData.features.length,
           totalUserStories: projectData.userStories.length,
           estimatedDevelopmentTime: projectData.executionPlan.estimatedTotalHours,
-          phases: projectData.executionPlan.phases.length
-        }
+          phases: implementationPhases.length || projectData.executionPlan.phases.length
+        },
+        implementationPhases
       };
       
     } catch (error) {
       console.error('PRD generation failed:', error);
       throw new Error('Failed to generate PRD. Please try again.');
     }
+  }
+
+  private extractImplementationRoadmapSection(prdContent: string): string | null {
+    // Extract the Implementation Roadmap section from the PRD
+    const roadmapMatch = prdContent.match(/## Implementation Roadmap([\s\S]*?)(?=##|$)/i);
+    
+    if (roadmapMatch && roadmapMatch[1]) {
+      return roadmapMatch[1].trim();
+    }
+    
+    // Alternative patterns to try
+    const alternativePatterns = [
+      /## \d+\.\s+Implementation Roadmap([\s\S]*?)(?=##|$)/i,
+      /## Development Roadmap([\s\S]*?)(?=##|$)/i,
+      /## Project Roadmap([\s\S]*?)(?=##|$)/i
+    ];
+    
+    for (const pattern of alternativePatterns) {
+      const match = prdContent.match(pattern);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+    }
+    
+    console.warn('Could not find Implementation Roadmap section in PRD');
+    return null;
   }
 
   private async gatherEnhancedProjectData(projectId: string) {
@@ -260,7 +332,13 @@ export class PRDGenerator {
     return sections;
   }
 
-  private async savePRDToDatabase(projectId: string, content: string, template: string, sections: PRDSection[]) {
+  private async savePRDToDatabase(
+    projectId: string, 
+    content: string, 
+    template: string, 
+    sections: PRDSection[], 
+    implementationPhases: ImplementationPhase[] = []
+  ) {
     const { data: project } = await supabase
       .from('projects')
       .select('title')
@@ -280,7 +358,8 @@ export class PRDGenerator {
         }, {} as Record<string, string>),
         metadata: {
           wordCount: content.split(' ').length,
-          sectionCount: sections.length
+          sectionCount: sections.length,
+          implementationPhases: implementationPhases // Store structured phases in metadata
         }
       })
       .select()
@@ -320,6 +399,9 @@ export class PRDGenerator {
 
     if (!data) return null;
 
+    // Extract implementation phases from metadata
+    const implementationPhases = data.metadata?.implementationPhases || [];
+
     return {
       id: data.id,
       content: data.content,
@@ -332,7 +414,8 @@ export class PRDGenerator {
       template: data.template,
       generatedAt: new Date(data.created_at),
       wordCount: data.content.split(' ').length,
-      metadata: data.metadata as any
+      metadata: data.metadata as any,
+      implementationPhases
     };
   }
 

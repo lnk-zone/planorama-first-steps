@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { PRDGenerator, type PRDDocument } from '@/lib/prdGenerator';
 import { toast } from 'sonner';
@@ -29,7 +30,14 @@ export const usePRD = (projectId: string) => {
     try {
       const newPRD = await prdGenerator.generateComprehensivePRD(projectId, template);
       setPrd(newPRD);
-      toast.success('PRD generated successfully!');
+      
+      // Enhanced success message with phase information
+      const phaseCount = newPRD.implementationPhases?.length || 0;
+      const message = phaseCount > 0 
+        ? `PRD generated successfully with ${phaseCount} implementation phases!`
+        : 'PRD generated successfully!';
+      
+      toast.success(message);
       return newPRD;
     } catch (error) {
       console.error('Error generating PRD:', error);

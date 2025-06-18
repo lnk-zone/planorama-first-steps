@@ -114,7 +114,24 @@ async function gatherProjectDataWithOrder(supabase: any, projectId: string) {
 
   console.log('User stories fetched:', userStories.length);
 
-  // Fetch execution plan
+  // NEW: Fetch structured implementation phases from PRD
+  let structuredPhases = [];
+  const { data: prdData, error: prdError } = await supabase
+    .from('prds')
+    .select('metadata')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (!prdError && prdData?.metadata?.implementationPhases) {
+    structuredPhases = prdData.metadata.implementationPhases;
+    console.log('Found structured implementation phases:', structuredPhases.length);
+  } else {
+    console.warn('No structured implementation phases found, will use fallback logic');
+  }
+
+  // Fetch execution plan (fallback if no structured phases)
   const { data: executionPlan, error: executionPlanError } = await supabase
     .from('execution_plans')
     .select('*')
@@ -129,15 +146,18 @@ async function gatherProjectDataWithOrder(supabase: any, projectId: string) {
     project,
     features: features || [],
     userStories: userStories || [],
-    executionPlan: executionPlan || { phases: [], total_stories: userStories.length, estimated_total_hours: 0 }
+    executionPlan: executionPlan || { phases: [], total_stories: userStories.length, estimated_total_hours: 0 },
+    structuredPhases: structuredPhases || [] // NEW: Include structured phases
   };
 }
 
 async function generateEnhancedUserStoryPrompts(projectData: any, platform: string) {
   const userStories = (projectData.userStories || []).sort((a: any, b: any) => (a.execution_order || 999) - (b.execution_order || 999));
-  const phases = projectData.executionPlan?.phases || [];
+  const structuredPhases = projectData.structuredPhases || [];
+  const fallbackPhases = projectData.executionPlan?.phases || [];
   
-  console.log('Generating enhanced prompts for', userStories.length, 'user stories and', phases.length, 'phases');
+  console.log('Generating enhanced prompts for', userStories.length, 'user stories');
+  console.log('Using structured phases:', structuredPhases.length, 'fallback phases:', fallbackPhases.length);
   
   const prompts: any = {
     phaseOverviews: [],
@@ -146,19 +166,36 @@ async function generateEnhancedUserStoryPrompts(projectData: any, platform: stri
     troubleshootingGuide: null
   };
 
-  // Create phase assignment map - improved logic
+  // Use structured phases if available, otherwise fallback to execution plan phases
+  const phasesToUse = structuredPhases.length > 0 ? structuredPhases : fallbackPhases;
+  console.log('Using phases for generation:', phasesToUse.length);
+
+  // Create story-to-phase mapping using structured phases
   const storyToPhaseMap = new Map();
   
-  console.log('Creating phase assignment mapping...');
-  
-  if (phases.length > 0) {
-    phases.forEach((phase: any, index: number) => {
+  if (structuredPhases.length > 0) {
+    console.log('Creating phase assignment mapping from structured phases...');
+    
+    structuredPhases.forEach((phase: any) => {
+      const phaseNumber = phase.number;
+      console.log(`Processing structured phase ${phaseNumber}: "${phase.name}" with ${phase.deliverables?.length || 0} deliverables`);
+      
+      if (phase.deliverables && Array.isArray(phase.deliverables)) {
+        phase.deliverables.forEach((deliverable: string) => {
+          storyToPhaseMap.set(deliverable.toLowerCase().trim(), phaseNumber);
+          console.log(`Mapped deliverable "${deliverable}" to phase ${phaseNumber}`);
+        });
+      }
+    });
+  } else if (fallbackPhases.length > 0) {
+    console.log('Using fallback phase mapping...');
+    
+    fallbackPhases.forEach((phase: any, index: number) => {
       const phaseNumber = index + 1;
-      console.log(`Processing phase ${phaseNumber}: "${phase.name}" with ${phase.stories?.length || 0} stories`);
+      console.log(`Processing fallback phase ${phaseNumber}: "${phase.name}" with ${phase.stories?.length || 0} stories`);
       
       if (phase.stories && Array.isArray(phase.stories)) {
         phase.stories.forEach((storyTitle: string) => {
-          // Store the phase number for each story title
           storyToPhaseMap.set(storyTitle.toLowerCase().trim(), phaseNumber);
           console.log(`Mapped story "${storyTitle}" to phase ${phaseNumber}`);
         });
@@ -169,13 +206,13 @@ async function generateEnhancedUserStoryPrompts(projectData: any, platform: stri
   console.log('Phase mapping complete. Total mappings:', storyToPhaseMap.size);
 
   // Generate enhanced phase overview prompts
-  if (phases.length > 0) {
-    for (let i = 0; i < phases.length; i++) {
-      const phase = phases[i];
-      const phaseStories = getStoriesForPhaseByTitle(userStories, phase);
-      console.log(`Phase ${i + 1} "${phase.name}" mapped stories:`, phaseStories.length, 'out of', phase.stories?.length || 0, 'expected');
+  if (phasesToUse.length > 0) {
+    for (let i = 0; i < phasesToUse.length; i++) {
+      const phase = phasesToUse[i];
+      const phaseStories = getStoriesForPhase(userStories, phase, structuredPhases.length > 0);
+      console.log(`Phase ${i + 1} "${phase.name}" mapped stories:`, phaseStories.length);
       
-      const phaseOverview = generateEnhancedPhaseOverviewPrompt(phase, phaseStories, projectData, platform, i + 1);
+      const phaseOverview = generateEnhancedPhaseOverviewPrompt(phase, phaseStories, projectData, platform, phase.number || i + 1);
       prompts.phaseOverviews.push(phaseOverview);
     }
   } else if (userStories.length > 0) {
@@ -184,13 +221,13 @@ async function generateEnhancedUserStoryPrompts(projectData: any, platform: stri
       number: 1,
       name: 'Development Phase',
       description: 'Complete all user stories for this project',
-      stories: userStories.map((story: any) => story.title)
+      deliverables: userStories.map((story: any) => story.title)
     };
     const phaseOverview = generateEnhancedPhaseOverviewPrompt(singlePhase, userStories, projectData, platform, 1);
     prompts.phaseOverviews.push(phaseOverview);
   }
 
-  // Generate enhanced individual story prompts with correct phase assignment
+  // Generate enhanced individual story prompts with improved phase assignment
   for (let i = 0; i < userStories.length; i++) {
     const story = userStories[i];
     const previousStories = userStories.slice(0, i);
@@ -207,7 +244,7 @@ async function generateEnhancedUserStoryPrompts(projectData: any, platform: stri
       storyPhase = storyToPhaseMap.get(storyTitleLower);
       console.log(`✓ Direct match: "${story.title}" -> Phase ${storyPhase}`);
     } else {
-      // Try fuzzy matching - look for partial matches
+      // Try fuzzy matching with deliverables/stories
       let bestMatch = null;
       let bestMatchPhase = 1;
       
@@ -231,11 +268,12 @@ async function generateEnhancedUserStoryPrompts(projectData: any, platform: stri
       } else {
         // Fallback: distribute by execution order if no match found
         const executionOrder = story.execution_order || i + 1;
-        if (phases.length >= 3) {
+        const totalPhases = phasesToUse.length || 1;
+        if (totalPhases >= 3) {
           if (executionOrder <= 6) storyPhase = 1;
           else if (executionOrder <= 10) storyPhase = 2;
           else storyPhase = 3;
-        } else if (phases.length >= 2) {
+        } else if (totalPhases >= 2) {
           if (executionOrder <= Math.ceil(userStories.length / 2)) storyPhase = 1;
           else storyPhase = 2;
         }
@@ -273,32 +311,57 @@ async function generateEnhancedUserStoryPrompts(projectData: any, platform: stri
   return prompts;
 }
 
-function getStoriesForPhaseByTitle(userStories: any[], phase: any) {
-  // Map phase story titles to actual user story objects
-  const phaseStoryTitles = phase.stories || [];
-  const mappedStories = [];
-  
-  for (const storyTitle of phaseStoryTitles) {
-    // Find matching user story by title (with fuzzy matching)
-    const matchingStory = userStories.find((story: any) => {
-      // Direct match
-      if (story.title === storyTitle) return true;
-      
-      // Clean and compare (remove extra spaces, case insensitive)
-      const cleanStoryTitle = story.title.toLowerCase().trim();
-      const cleanPhaseTitle = storyTitle.toLowerCase().trim();
-      
-      return cleanStoryTitle === cleanPhaseTitle;
-    });
+function getStoriesForPhase(userStories: any[], phase: any, isStructuredPhase: boolean) {
+  if (isStructuredPhase) {
+    // For structured phases, match against deliverables
+    const phaseDeliverables = phase.deliverables || [];
+    const mappedStories = [];
     
-    if (matchingStory) {
-      mappedStories.push(matchingStory);
-    } else {
-      console.warn(`Could not find user story for phase title: "${storyTitle}"`);
+    for (const deliverable of phaseDeliverables) {
+      // Find matching user story by title (with fuzzy matching)
+      const matchingStory = userStories.find((story: any) => {
+        // Direct match
+        if (story.title === deliverable) return true;
+        
+        // Clean and compare (remove extra spaces, case insensitive)
+        const cleanStoryTitle = story.title.toLowerCase().trim();
+        const cleanDeliverableTitle = deliverable.toLowerCase().trim();
+        
+        return cleanStoryTitle === cleanDeliverableTitle;
+      });
+      
+      if (matchingStory) {
+        mappedStories.push(matchingStory);
+      } else {
+        console.warn(`Could not find user story for deliverable: "${deliverable}"`);
+      }
     }
+    
+    return mappedStories;
+  } else {
+    // For fallback phases, use existing logic
+    const phaseStoryTitles = phase.stories || [];
+    const mappedStories = [];
+    
+    for (const storyTitle of phaseStoryTitles) {
+      const matchingStory = userStories.find((story: any) => {
+        if (story.title === storyTitle) return true;
+        
+        const cleanStoryTitle = story.title.toLowerCase().trim();
+        const cleanPhaseTitle = storyTitle.toLowerCase().trim();
+        
+        return cleanStoryTitle === cleanPhaseTitle;
+      });
+      
+      if (matchingStory) {
+        mappedStories.push(matchingStory);
+      } else {
+        console.warn(`Could not find user story for phase title: "${storyTitle}"`);
+      }
+    }
+    
+    return mappedStories;
   }
-  
-  return mappedStories;
 }
 
 function generateEnhancedPhaseOverviewPrompt(phase: any, phaseStories: any[], projectData: any, platform: string, phaseNumber: number) {
