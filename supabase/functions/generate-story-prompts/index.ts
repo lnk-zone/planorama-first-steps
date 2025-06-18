@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -891,6 +892,92 @@ function getPlatformContent(platform: string): string {
 - Implement proper accessibility`;
 }
 
+// Helper functions for generating content sections
+function generateSetupSection(project: any, platform: string): string {
+  return `
+## Technical Setup & Environment
+
+### Project Configuration
+- **Framework:** React with TypeScript and Vite
+- **Styling:** Tailwind CSS with shadcn/ui component library
+- **State Management:** React Context API and custom hooks
+- **Data Fetching:** React Query for server state management
+- **Form Handling:** React Hook Form with Zod validation
+- **Routing:** React Router for navigation
+
+### Prerequisites
+Before starting this phase, ensure:
+- Development environment is properly configured
+- All project dependencies are installed and up to date
+- Database connections are working correctly
+- Authentication system is functional (if required)
+- Previous phases are completed and tested
+
+### Quality Standards
+- Write TypeScript with strict type checking
+- Follow established component patterns and file structure
+- Implement responsive design for all screen sizes
+- Use semantic HTML and proper accessibility attributes
+- Add comprehensive error handling and loading states`;
+}
+
+function generateStrategySection(deliverables: string[], phaseName: string): string {
+  return `
+## Implementation Strategy
+
+### Development Approach
+This phase should be implemented incrementally, with each deliverable building upon the previous one. Focus on:
+
+1. **Component-First Development**
+   - Create reusable, well-structured components
+   - Implement proper TypeScript interfaces
+   - Follow the established design system
+
+2. **Incremental Integration**
+   - Test each deliverable independently
+   - Integrate with existing features gradually
+   - Validate user flows at each step
+
+3. **Quality Assurance**
+   - Implement comprehensive error handling
+   - Add loading states and user feedback
+   - Test across different screen sizes and devices
+
+### Deliverable Priority
+${deliverables.map((item: string, index: number) => `${index + 1}. ${item}`).join('\n')}
+
+Each deliverable should be completed and tested before moving to the next one.`;
+}
+
+function generateBestPracticesSection(platform: string): string {
+  return `
+## Development Best Practices
+
+### Code Organization
+- Create small, focused components (prefer composition over large components)
+- Use custom hooks for complex state logic
+- Implement proper separation of concerns
+- Follow consistent naming conventions
+
+### Performance Optimization
+- Use React.memo for expensive components
+- Implement proper dependency arrays in useEffect
+- Consider lazy loading for large components
+- Optimize bundle size and loading times
+
+### User Experience
+- Implement proper loading states
+- Add meaningful error messages
+- Ensure keyboard navigation works correctly
+- Test with screen readers for accessibility
+
+### Testing & Validation
+- Test all user interactions and edge cases
+- Verify responsive behavior across devices
+- Validate form inputs and error handling
+- Ensure proper data persistence and retrieval`;
+}
+
 // Enhanced Transition Template
 function generateEnhancedTransitionTemplate(project: any, currentStory: any, nextStory: any, platform: string): string {
   const currentType = determineStoryType(currentStory, null);
@@ -1043,7 +1130,7 @@ function generateEnhancedTroubleshootingTemplate(project: any, platform: string)
 |-------|-----------|---------|
 | TypeScript errors | Check types, imports, props | See TypeScript section below |
 | Module not found | Verify import paths, case sensitivity | See Import section below |
-| Build fails | Clear cache, restart dev server | \`rm -rf node_modules .next && npm install\` |
+| Build fails | Clear cache, restart dev server | Remove node_modules and reinstall |
 
 ### ⚛️ React Component Issues
 | Issue | Quick Fix | Details |
@@ -1056,7 +1143,7 @@ function generateEnhancedTroubleshootingTemplate(project: any, platform: string)
 | Issue | Quick Fix | Details |
 |-------|-----------|---------|
 | Tailwind not working | Check class names, restart server | See Styling section below |
-| Not responsive | Use responsive prefixes | \`sm:\`, \`md:\`, \`lg:\`, \`xl:\` |
+| Not responsive | Use responsive prefixes | sm:, md:, lg:, xl: |
 | Components misaligned | Check flex/grid properties | See Layout section below |
 
 ## Detailed Troubleshooting Sections
@@ -1064,261 +1151,72 @@ function generateEnhancedTroubleshootingTemplate(project: any, platform: string)
 ### 1. TypeScript & Compilation Issues
 
 **Problem: TypeScript compilation errors**
-```bash
-# Common fixes:
-npm run type-check
-# or
-npx tsc --noEmit
-```
-
-**Solutions:**
-- Check for missing type definitions
-- Verify all imports have correct file paths
-- Ensure all required props are provided to components
-- Look for unused variables or imports
+Check for missing type definitions, verify import paths, ensure required props are provided.
 
 **Problem: Module resolution errors**
-```typescript
-// ❌ Wrong - case sensitive paths
-import Component from './Component'
-// ✅ Correct
-import Component from './Component.tsx'
-```
-
-**Advanced TypeScript Debugging:**
-```typescript
-// Add explicit types to debug
-const MyComponent: React.FC<Props> = ({ prop1, prop2 }) => {
-  // implementation
-}
-```
+Verify file paths are correct and case-sensitive, check file extensions.
 
 ### 2. React Component & State Management
 
 **Problem: Component not rendering**
-```jsx
-// ✅ Ensure proper export/import
-export default function MyComponent() {
-  return <div>Content</div>
-}
-
-// ✅ Check JSX syntax
-return (
-  <div>
-    <h1>Title</h1>
-  </div>
-)
-```
+Ensure proper export/import, check JSX syntax, verify component structure.
 
 **Problem: State not updating**
-```jsx
-// ❌ Wrong - direct mutation
-setState(state.push(newItem))
-
-// ✅ Correct - immutable update
-setState(prev => [...prev, newItem])
-
-// ✅ Functional updates
-setCount(prevCount => prevCount + 1)
-```
+Use functional updates for state, avoid direct mutations, check dependency arrays.
 
 **Problem: useEffect issues**
-```jsx
-// ✅ Proper dependency array
-useEffect(() => {
-  fetchData(userId)
-}, [userId]) // Include all dependencies
-
-// ✅ Cleanup functions
-useEffect(() => {
-  const timer = setInterval(() => {}, 1000)
-  return () => clearInterval(timer)
-}, [])
-```
+Include all dependencies in dependency array, implement cleanup functions when needed.
 
 ### 3. Data Fetching & API Integration
 
 **Problem: API calls failing**
-```typescript
-// ✅ Proper error handling
-const { data, error, isLoading } = useQuery({
-  queryKey: ['users'],
-  queryFn: async () => {
-    const response = await fetch('/api/users')
-    if (!response.ok) {
-      throw new Error(\`HTTP error! status: \${response.status}\`)
-    }
-    return response.json()
-  }
-})
-
-if (error) {
-  console.error('API Error:', error)
-  return <div>Error loading data</div>
-}
-```
+Implement proper error handling, check network requests, verify API endpoints.
 
 **Problem: Supabase integration issues**
-```typescript
-// ✅ Check Supabase connection
-import { supabase } from '@/integrations/supabase/client'
-
-const { data, error } = await supabase
-  .from('table_name')
-  .select('*')
-
-if (error) {
-  console.error('Supabase error:', error)
-}
-```
+Check Supabase connection, verify table permissions, handle authentication properly.
 
 ### 4. Styling & Layout Issues
 
 **Problem: Tailwind classes not applying**
-```jsx
-// ✅ Check for typos in class names
-<div className="bg-blue-500 text-white p-4">
-  
-// ✅ Use string literals, not template literals for static classes
-<div className="bg-blue-500 hover:bg-blue-600">
-
-// ✅ For dynamic classes, use full class names
-<div className={isActive ? 'bg-blue-500' : 'bg-gray-500'}>
-```
+Check for typos in class names, use string literals for static classes, restart dev server.
 
 **Problem: Responsive design not working**
-```jsx
-// ✅ Mobile-first approach
-<div className="w-full md:w-1/2 lg:w-1/3">
-  
-// ✅ Responsive text sizes
-<h1 className="text-xl md:text-2xl lg:text-3xl">
-```
+Use mobile-first approach, implement proper breakpoints, test across devices.
 
 **Problem: Layout issues**
-```jsx
-// ✅ Flexbox for alignment
-<div className="flex items-center justify-between">
-  
-// ✅ Grid for complex layouts
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-```
+Use flexbox for alignment, implement grid for complex layouts, check container properties.
 
 ### 5. Form Handling & Validation
 
 **Problem: Form submission issues**
-```typescript
-// ✅ Proper form handling with React Hook Form
-import { useForm } from 'react-hook-form'
-
-const { register, handleSubmit, formState: { errors } } = useForm()
-
-const onSubmit = (data) => {
-  console.log(data)
-}
-
-return (
-  <form onSubmit={handleSubmit(onSubmit)}>
-    <input {...register('email', { required: 'Email is required' })} />
-    {errors.email && <span>{errors.email.message}</span>}
-  </form>
-)
-```
+Use proper form handling with React Hook Form, implement validation, handle form states.
 
 ### 6. Performance & Optimization
 
 **Problem: Component re-rendering too often**
-```typescript
-// ✅ Use React.memo for expensive components
-const ExpensiveComponent = React.memo(({ data }) => {
-  return <div>{/* expensive rendering */}</div>
-})
-
-// ✅ Use useMemo for expensive calculations
-const expensiveValue = useMemo(() => {
-  return heavyCalculation(data)
-}, [data])
-
-// ✅ Use useCallback for stable function references
-const handleClick = useCallback(() => {
-  // handler logic
-}, [dependency])
-```
+Use React.memo for expensive components, implement useMemo and useCallback appropriately.
 
 ## Debugging Strategies
 
 ### 1. Browser Developer Tools
-```javascript
-// Add strategic console.logs
-console.log('Component rendered with props:', props)
-console.log('State updated:', state)
-
-// Use debugger statements
-debugger; // Execution will pause here
-
-// Check React Developer Tools
-// Install React DevTools browser extension
-```
+Add strategic console.logs, use debugger statements, check React Developer Tools.
 
 ### 2. Network & API Debugging
-```javascript
-// Monitor network requests in DevTools
-// Check request/response in Network tab
-// Verify API endpoints and payload
-
-// Add request logging
-fetch('/api/endpoint')
-  .then(response => {
-    console.log('Response status:', response.status)
-    return response.json()
-  })
-  .then(data => console.log('Response data:', data))
-```
+Monitor network requests, check request/response in Network tab, verify API endpoints.
 
 ### 3. State Debugging
-```typescript
-// Use React DevTools to inspect state
-// Add state logging in useEffect
-useEffect(() => {
-  console.log('State changed:', state)
-}, [state])
-
-// Use Redux DevTools for complex state
-// Add state snapshots for debugging
-```
+Use React DevTools to inspect state, add state logging in useEffect.
 
 ## Platform-Specific Issues
 
 ### React + Vite Issues
-```bash
-# Clear Vite cache
-rm -rf node_modules/.vite
-npm run dev
-
-# Check Vite config
-# Verify import paths are correct
-# Ensure all file extensions are included
-```
+Clear Vite cache, check Vite config, verify import paths and file extensions.
 
 ### Tailwind CSS Issues
-```bash
-# Regenerate Tailwind
-npm run build:css
-
-# Check tailwind.config.js
-# Verify content paths are correct
-# Check for conflicting styles
-```
+Regenerate Tailwind, check tailwind.config.js, verify content paths.
 
 ### TypeScript Issues
-```bash
-# Type check without build
-npx tsc --noEmit
-
-# Check tsconfig.json
-# Verify path mappings
-# Check for strict mode issues
-```
+Run type check without build, check tsconfig.json, verify path mappings.
 
 ## Best Practices for Prevention
 
@@ -1329,42 +1227,10 @@ npx tsc --noEmit
 - Separate concerns (UI, logic, data)
 
 ### 2. Error Handling
-```typescript
-// ✅ Comprehensive error boundaries
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props)
-    this.state = { hasError: false }
-  }
-  
-  static getDerivedStateFromError(error) {
-    return { hasError: true }
-  }
-  
-  componentDidCatch(error, errorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo)
-  }
-  
-  render() {
-    if (this.state.hasError) {
-      return <h1>Something went wrong.</h1>
-    }
-    return this.props.children
-  }
-}
-```
+Implement comprehensive error boundaries, add proper try-catch blocks, handle async errors.
 
 ### 3. Testing Strategy
-```typescript
-// ✅ Test components in isolation
-import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-
-test('component renders correctly', () => {
-  render(<MyComponent />)
-  expect(screen.getByText('Expected Text')).toBeInTheDocument()
-})
-```
+Test components in isolation, use proper testing utilities, implement unit and integration tests.
 
 ### 4. Development Workflow
 - Use consistent git commit messages
@@ -1376,10 +1242,10 @@ test('component renders correctly', () => {
 ## Getting Additional Help
 
 ### 1. Documentation Resources
-- [React Documentation](https://react.dev)
-- [TypeScript Handbook](https://www.typescriptlang.org/docs)
-- [Tailwind CSS Docs](https://tailwindcss.com/docs)
-- [React Query Docs](https://tanstack.com/query)
+- React Documentation
+- TypeScript Handbook
+- Tailwind CSS Docs
+- React Query Docs
 
 ### 2. Debugging Tools
 - React Developer Tools
