@@ -1,10 +1,19 @@
 
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import Landing from './Landing';
 
 const Index = () => {
   const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // If user is authenticated, redirect them to dashboard
+    if (user && !loading) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, loading, navigate]);
 
   if (loading) {
     return (
@@ -14,14 +23,13 @@ const Index = () => {
     );
   }
 
-  // If user is authenticated, redirect them to dashboard
-  if (user) {
-    window.location.href = '/dashboard';
-    return null;
+  // Show landing page for non-authenticated users
+  if (!user) {
+    return <Landing />;
   }
 
-  // Show landing page for non-authenticated users
-  return <Landing />;
+  // Return null while redirecting to prevent flash
+  return null;
 };
 
 export default Index;
