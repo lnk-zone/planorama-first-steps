@@ -13,6 +13,7 @@ interface EmailInputProps {
   placeholder?: string;
   required?: boolean;
   className?: string;
+  disabled?: boolean;
   onValidationChange?: (isValid: boolean) => void;
 }
 
@@ -23,6 +24,7 @@ const EmailInput: React.FC<EmailInputProps> = ({
   placeholder = 'Enter your email',
   required = false,
   className,
+  disabled = false,
   onValidationChange
 }) => {
   const { isValid, isChecking, isTaken, error } = useEmailValidation(value);
@@ -57,6 +59,7 @@ const EmailInput: React.FC<EmailInputProps> = ({
           placeholder={placeholder}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
           className={cn(
             'pl-10 pr-10',
             getInputBorderColor(),
