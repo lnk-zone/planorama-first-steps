@@ -61,8 +61,8 @@ const Login = () => {
     setGoogleLoading(true);
     
     try {
-      // Use the actual deployed URL for the redirect
-      const redirectUrl = `${window.location.origin}/dashboard`;
+      // Use the root URL for the redirect to properly handle OAuth callback
+      const redirectUrl = `${window.location.origin}/`;
       console.log('Google OAuth redirect URL:', redirectUrl);
       
       const { error } = await supabase.auth.signInWithOAuth({

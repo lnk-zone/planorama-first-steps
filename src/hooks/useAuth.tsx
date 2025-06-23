@@ -21,6 +21,17 @@ export const useAuth = () => {
         // Handle successful sign in events
         if (event === 'SIGNED_IN' && session?.user) {
           console.log('User signed in successfully:', session.user.email);
+          // For OAuth logins, show success message and redirect
+          if (window.location.pathname === '/') {
+            toast({
+              title: "Welcome!",
+              description: "You have successfully signed in.",
+            });
+            // Redirect to dashboard after OAuth login
+            setTimeout(() => {
+              window.location.href = '/dashboard';
+            }, 1000);
+          }
         }
       }
     );
@@ -81,7 +92,7 @@ export const useAuth = () => {
   const signUp = async (email: string, password: string, fullName: string, company?: string) => {
     try {
       console.log('Attempting sign up for:', email);
-      const redirectUrl = `${window.location.origin}/dashboard`;
+      const redirectUrl = `${window.location.origin}/`;
       
       const { data, error } = await supabase.auth.signUp({
         email,
