@@ -10,8 +10,7 @@ import { FormField } from '@/components/ui/enhanced-form';
 import GenerationProgress from '@/components/GenerationProgress';
 import { Sparkles, FolderPlus, Loader2 } from 'lucide-react';
 import { useFormValidation } from '@/hooks/useFormValidation';
-import { useEmailValidation } from '@/hooks/useEmailValidation';
-import { generateFeatures, type GenerationResult } from '@/lib/aiFeatureGenerator';
+import { AIFeatureGenerator, type GenerationResult } from '@/lib/aiFeatureGenerator';
 import { toast } from '@/hooks/use-toast';
 
 export interface EnhancedCreateProjectData {
@@ -54,27 +53,35 @@ const EnhancedCreateProjectModal: React.FC<EnhancedCreateProjectModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
-  const [progressStep, setProgressStep] = useState(0);
+  const [progressStage, setProgressStage] = useState<'analyzing' | 'generating_structure' | 'creating_features' | 'generating_stories' | 'complete'>('analyzing');
+  const [progressPercent, setProgressPercent] = useState(0);
+  const [currentAction, setCurrentAction] = useState('');
 
-  const { errors, validateField, validateForm, clearErrors } = useFormValidation();
+  const validationRules = {
+    title: { required: true, minLength: { value: 2, message: 'Title must be at least 2 characters' }, maxLength: { value: 100, message: 'Title must be less than 100 characters' } },
+    description: { required: true, minLength: { value: 10, message: 'Description must be at least 10 characters' }, maxLength: { value: 500, message: 'Description must be less than 500 characters' } },
+    project_type: { required: true }
+  };
+
+  const { errors, validateField, validateForm, clearAllErrors } = useFormValidation({ rules: validationRules });
 
   const handleInputChange = (field: keyof EnhancedCreateProjectData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      validateField(field, value, getValidationRules());
+      validateField(field, value);
     }
   };
 
-  const getValidationRules = () => ({
-    title: { required: true, minLength: 2, maxLength: 100 },
-    description: { required: true, minLength: 10, maxLength: 500 },
-    project_type: { required: true }
-  });
+  const updateProgress = (stage: typeof progressStage, progress: number, action: string) => {
+    setProgressStage(stage);
+    setProgressPercent(progress);
+    setCurrentAction(action);
+  };
 
   const handleSubmit = async (generateAI: boolean = false) => {
-    const rules = getValidationRules();
+    const { isValid } = validateForm(formData);
     
-    if (!validateForm(formData, rules)) {
+    if (!isValid) {
       return;
     }
 
@@ -82,26 +89,38 @@ const EnhancedCreateProjectModal: React.FC<EnhancedCreateProjectModalProps> = ({
       if (generateAI) {
         setAiLoading(true);
         setShowProgress(true);
-        setProgressStep(1);
+        updateProgress('analyzing', 10, 'Creating project...');
 
         // Create project first
         const projectId = await onSubmit(formData);
-        setProgressStep(2);
+        updateProgress('generating_structure', 30, 'Analyzing project requirements...');
 
         // Generate features with AI
-        const result = await generateFeatures(projectId, {
-          title: formData.title,
-          description: formData.description,
-          projectType: formData.project_type,
-          targetAudience: formData.target_audience,
-          keyFeatures: formData.key_features,
-          monetization: formData.monetization,
-          techStack: formData.tech_stack,
-          timeline: formData.timeline,
-          budget: formData.budget
+        const generator = new AIFeatureGenerator((progress) => {
+          updateProgress(progress.stage, progress.progress, progress.currentAction);
         });
 
-        setProgressStep(3);
+        updateProgress('creating_features', 50, 'Generating features...');
+
+        const result = await generator.generateFeaturesWithDependencies(
+          projectId,
+          formData.description,
+          formData.project_type,
+          {
+            projectTitle: formData.title,
+            projectDescription: formData.description,
+            appType: formData.project_type as any,
+            targetUsers: formData.target_audience || '',
+            coreUserActions: formData.key_features || '',
+            monetizationModel: (formData.monetization as any) || 'other',
+            specificRequirements: formData.key_features ? [formData.key_features] : [],
+            technicalPreferences: formData.tech_stack,
+            complexity: 'medium',
+            includeAdvancedFeatures: true
+          }
+        );
+
+        updateProgress('complete', 100, 'Features generated successfully!');
 
         // Close modal and show progress result
         setTimeout(() => {
@@ -110,7 +129,7 @@ const EnhancedCreateProjectModal: React.FC<EnhancedCreateProjectModalProps> = ({
           resetForm();
           onClose();
           onFeaturesGenerated?.(projectId, result);
-        }, 1000);
+        }, 1500);
 
       } else {
         setLoading(true);
@@ -149,8 +168,10 @@ const EnhancedCreateProjectModal: React.FC<EnhancedCreateProjectModalProps> = ({
       timeline: '',
       budget: ''
     });
-    clearErrors();
-    setProgressStep(0);
+    clearAllErrors();
+    setProgressPercent(0);
+    setProgressStage('analyzing');
+    setCurrentAction('');
   };
 
   const handleClose = () => {
@@ -162,11 +183,15 @@ const EnhancedCreateProjectModal: React.FC<EnhancedCreateProjectModalProps> = ({
   // Show progress modal during AI generation
   if (showProgress) {
     return (
-      <GenerationProgress
-        isOpen={true}
-        step={progressStep}
-        onClose={() => {}} // Prevent closing during generation
-      />
+      <Dialog open={true} onOpenChange={() => {}}>
+        <DialogContent className="max-w-md">
+          <GenerationProgress
+            stage={progressStage}
+            progress={progressPercent}
+            currentAction={currentAction}
+          />
+        </DialogContent>
+      </Dialog>
     );
   }
 

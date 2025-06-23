@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useFeatures } from '@/hooks/useFeatures';
@@ -288,6 +287,16 @@ const FeaturesPage = () => {
     setParentFeatureForChild(parentFeature);
   };
 
+  const handleAIGenerationComplete = () => {
+    setIsAIGenerationModalOpen(false);
+    toast({
+      title: "Features generated",
+      description: "AI has successfully generated features and user stories for your project.",
+    });
+    // Refresh the page to show the new features
+    window.location.reload();
+  };
+
   if (loading) {
     return (
       <AppLayout>
@@ -546,6 +555,7 @@ const FeaturesPage = () => {
         <AIFeatureGenerationModal
           isOpen={isAIGenerationModalOpen}
           onClose={() => setIsAIGenerationModalOpen(false)}
+          onComplete={handleAIGenerationComplete}
           projectId={id || ''}
         />
       </div>
