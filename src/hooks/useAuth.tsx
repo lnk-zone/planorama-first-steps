@@ -8,8 +8,17 @@ export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [oauthLoading, setOauthLoading] = useState(false);
 
   useEffect(() => {
+    // Check if we're handling an OAuth callback
+    const isOAuthCallback = window.location.hash.includes('access_token=');
+    
+    if (isOAuthCallback) {
+      console.log('OAuth callback detected, processing tokens...');
+      setOauthLoading(true);
+    }
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -18,27 +27,42 @@ export const useAuth = () => {
         setUser(session?.user ?? null);
         setLoading(false);
         
-        // Handle successful sign in events for OAuth only
-        if (event === 'SIGNED_IN' && session?.user) {
-          console.log('User signed in successfully:', session.user.email);
-          // Only show toast and redirect for OAuth logins from landing page
-          if (window.location.pathname === '/dashboard' && !sessionStorage.getItem('regularLogin')) {
-            toast({
-              title: "Welcome!",
-              description: "You have successfully signed in.",
-            });
-          }
+        // Handle successful OAuth sign in
+        if (event === 'SIGNED_IN' && session?.user && isOAuthCallback) {
+          console.log('OAuth sign in successful:', session.user.email);
+          setOauthLoading(false);
+          
+          // Clean up the URL by removing the hash
+          window.history.replaceState(null, '', window.location.pathname);
+          
+          toast({
+            title: "Welcome!",
+            description: "You have successfully signed in with Google.",
+          });
+        }
+        
+        // Handle regular email/password sign in
+        if (event === 'SIGNED_IN' && session?.user && !isOAuthCallback && sessionStorage.getItem('regularLogin')) {
+          console.log('Regular sign in successful:', session.user.email);
+          toast({
+            title: "Welcome back!",
+            description: "You have successfully signed in.",
+          });
+          // Clean up the flag after successful login
+          setTimeout(() => sessionStorage.removeItem('regularLogin'), 1000);
         }
       }
     );
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Initial session check:', session?.user?.email);
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    // THEN check for existing session (but not if we're processing OAuth)
+    if (!isOAuthCallback) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        console.log('Initial session check:', session?.user?.email);
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+      });
+    }
 
     return () => subscription.unsubscribe();
   }, []);
@@ -68,14 +92,6 @@ export const useAuth = () => {
           description: errorMessage,
           variant: "destructive",
         });
-      } else {
-        console.log('Sign in successful:', data.user?.email);
-        toast({
-          title: "Welcome back!",
-          description: "You have successfully signed in.",
-        });
-        // Clean up the flag after successful login
-        setTimeout(() => sessionStorage.removeItem('regularLogin'), 1000);
       }
 
       return { data, error };
@@ -206,7 +222,7 @@ export const useAuth = () => {
   return {
     user,
     session,
-    loading,
+    loading: loading || oauthLoading, // Include OAuth loading in overall loading state
     signIn,
     signUp,
     signOut,
