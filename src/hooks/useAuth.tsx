@@ -11,12 +11,19 @@ export const useAuth = () => {
   const [oauthLoading, setOauthLoading] = useState(false);
 
   useEffect(() => {
-    // Check if we're handling an OAuth callback
-    const isOAuthCallback = window.location.hash.includes('access_token=');
+    let isOAuthCallback = false;
     
-    if (isOAuthCallback) {
+    // More robust OAuth callback detection
+    const checkForOAuthCallback = () => {
+      const hash = window.location.hash;
+      return hash.includes('access_token=') || hash.includes('error=');
+    };
+
+    // Initial check and continuous monitoring
+    if (checkForOAuthCallback()) {
       console.log('OAuth callback detected, processing tokens...');
       setOauthLoading(true);
+      isOAuthCallback = true;
     }
 
     // Set up auth state listener FIRST
@@ -50,6 +57,17 @@ export const useAuth = () => {
           });
           // Clean up the flag after successful login
           setTimeout(() => sessionStorage.removeItem('regularLogin'), 1000);
+        }
+
+        // Handle OAuth errors
+        if (event === 'SIGNED_OUT' && isOAuthCallback) {
+          console.log('OAuth callback failed');
+          setOauthLoading(false);
+          toast({
+            title: "Sign in failed",
+            description: "There was an issue signing in with Google. Please try again.",
+            variant: "destructive",
+          });
         }
       }
     );
@@ -85,6 +103,10 @@ export const useAuth = () => {
         // Provide more helpful error messages
         if (error.message === 'Invalid login credentials') {
           errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+        } else if (error.message.includes('Email not confirmed')) {
+          errorMessage = 'Please check your email and click the confirmation link before signing in.';
+        } else if (error.message.includes('not verified')) {
+          errorMessage = 'Please verify your email address before signing in. Check your email for a verification link.';
         }
         
         toast({
@@ -129,7 +151,9 @@ export const useAuth = () => {
         
         // Provide more helpful error messages
         if (error.message.includes('already registered')) {
-          errorMessage = 'This email is already registered. Please try signing in instead.';
+          errorMessage = 'This email is already registered. Please try signing in instead, or check your email for a confirmation link if you recently signed up.';
+        } else if (error.message.includes('weak password')) {
+          errorMessage = 'Password is too weak. Please choose a stronger password.';
         }
         
         toast({
@@ -144,7 +168,7 @@ export const useAuth = () => {
         if (!data.session) {
           toast({
             title: "Account created!",
-            description: "Please check your email to confirm your account before signing in.",
+            description: "Please check your email to confirm your account before signing in. The email may take a few minutes to arrive.",
           });
         } else {
           toast({
@@ -163,6 +187,37 @@ export const useAuth = () => {
         variant: "destructive",
       });
       return { data: null, error };
+    }
+  };
+
+  const resendConfirmation = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+        }
+      });
+
+      if (error) {
+        console.error('Resend confirmation error:', error);
+        toast({
+          title: "Error resending confirmation",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Confirmation email sent",
+          description: "Please check your email for the confirmation link.",
+        });
+      }
+
+      return { error };
+    } catch (error) {
+      console.error('Unexpected resend confirmation error:', error);
+      return { error };
     }
   };
 
@@ -227,5 +282,6 @@ export const useAuth = () => {
     signUp,
     signOut,
     resetPassword,
+    resendConfirmation,
   };
 };

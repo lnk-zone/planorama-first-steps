@@ -73,16 +73,22 @@ const Register = () => {
 
     setLoading(true);
     
-    const { error } = await signUp(
+    const { data, error } = await signUp(
       formData.email,
       formData.password,
       formData.fullName,
       formData.company
     );
     
-    if (!error) {
-      // Don't navigate immediately - let the user handle email confirmation if needed
-      console.log('Registration successful, waiting for auth state change');
+    if (!error && data.user) {
+      // Don't navigate immediately if email confirmation is required
+      if (!data.session) {
+        // Show message about email confirmation and don't redirect
+        console.log('Registration successful, email confirmation required');
+      } else {
+        // User is automatically signed in, redirect to dashboard
+        navigate('/dashboard');
+      }
     }
     
     setLoading(false);
@@ -119,6 +125,7 @@ const Register = () => {
           description: error.message,
           variant: "destructive",
         });
+        setGoogleLoading(false);
       }
     } catch (error) {
       console.error('Unexpected Google sign up error:', error);
@@ -127,9 +134,8 @@ const Register = () => {
         description: "Failed to initialize Google sign up. Please try again.",
         variant: "destructive",
       });
+      setGoogleLoading(false);
     }
-    
-    setGoogleLoading(false);
   };
 
   const handleInputChange = (field: keyof typeof formData, value: string) => {
@@ -157,7 +163,7 @@ const Register = () => {
           <CardContent className="space-y-4">
             <Button
               onClick={handleGoogleSignUp}
-              disabled={googleLoading}
+              disabled={googleLoading || loading}
               variant="outline"
               className="w-full"
             >
@@ -207,6 +213,7 @@ const Register = () => {
                     value={formData.fullName}
                     onChange={(e) => handleInputChange('fullName', e.target.value)}
                     className={`pl-10 ${errors.fullName ? 'border-red-500' : ''}`}
+                    disabled={loading || googleLoading}
                   />
                 </div>
                 {errors.fullName && (
@@ -219,6 +226,7 @@ const Register = () => {
                 onChange={(value) => handleInputChange('email', value)}
                 onValidationChange={setEmailValid}
                 required
+                disabled={loading || googleLoading}
               />
               {errors.email && (
                 <p className="text-sm text-red-500">{errors.email}</p>
@@ -235,6 +243,7 @@ const Register = () => {
                     value={formData.company}
                     onChange={(e) => handleInputChange('company', e.target.value)}
                     className="pl-10"
+                    disabled={loading || googleLoading}
                   />
                 </div>
               </div>
@@ -250,6 +259,7 @@ const Register = () => {
                     value={formData.password}
                     onChange={(e) => handleInputChange('password', e.target.value)}
                     className={`pl-10 ${errors.password ? 'border-red-500' : ''}`}
+                    disabled={loading || googleLoading}
                   />
                 </div>
                 {errors.password && (
@@ -266,6 +276,7 @@ const Register = () => {
                   id="terms" 
                   checked={acceptTerms}
                   onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
+                  disabled={loading || googleLoading}
                 />
                 <Label htmlFor="terms" className="text-sm">
                   I agree to the{' '}
@@ -285,7 +296,7 @@ const Register = () => {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={loading}
+                disabled={loading || googleLoading}
               >
                 {loading ? (
                   <>

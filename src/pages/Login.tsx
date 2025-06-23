@@ -12,12 +12,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
 const Login = () => {
-  const { user, signIn } = useAuth();
+  const { user, signIn, resendConfirmation } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [showResendConfirmation, setShowResendConfirmation] = useState(false);
+  const [resendingConfirmation, setResendingConfirmation] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
   if (user) {
@@ -47,14 +49,36 @@ const Login = () => {
     if (!validateForm()) return;
 
     setLoading(true);
+    setShowResendConfirmation(false);
     
     const { error } = await signIn(email, password);
     
     if (!error) {
       navigate('/dashboard');
+    } else {
+      // Check if it might be an email confirmation issue
+      if (error.message?.includes('credentials') || error.message?.includes('not confirmed')) {
+        setShowResendConfirmation(true);
+      }
     }
     
     setLoading(false);
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!email) {
+      toast({
+        title: "Email required",
+        description: "Please enter your email address first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setResendingConfirmation(true);
+    await resendConfirmation(email);
+    setResendingConfirmation(false);
+    setShowResendConfirmation(false);
   };
 
   const handleGoogleSignIn = async () => {
@@ -83,6 +107,7 @@ const Login = () => {
           description: error.message,
           variant: "destructive",
         });
+        setGoogleLoading(false);
       }
     } catch (error) {
       console.error('Unexpected Google sign in error:', error);
@@ -91,9 +116,8 @@ const Login = () => {
         description: "Failed to initialize Google sign in. Please try again.",
         variant: "destructive",
       });
+      setGoogleLoading(false);
     }
-    
-    setGoogleLoading(false);
   };
 
   return (
@@ -117,7 +141,7 @@ const Login = () => {
           <CardContent className="space-y-4">
             <Button
               onClick={handleGoogleSignIn}
-              disabled={googleLoading}
+              disabled={googleLoading || loading}
               variant="outline"
               className="w-full"
             >
@@ -167,6 +191,7 @@ const Login = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className={`pl-10 ${errors.email ? 'border-red-500' : ''}`}
+                    disabled={loading || googleLoading}
                   />
                 </div>
                 {errors.email && (
@@ -185,6 +210,7 @@ const Login = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className={`pl-10 ${errors.password ? 'border-red-500' : ''}`}
+                    disabled={loading || googleLoading}
                   />
                 </div>
                 {errors.password && (
@@ -192,10 +218,35 @@ const Login = () => {
                 )}
               </div>
 
+              {showResendConfirmation && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                  <p className="text-sm text-yellow-800 mb-2">
+                    Haven't confirmed your email yet?
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleResendConfirmation}
+                    disabled={resendingConfirmation}
+                    className="text-yellow-800 border-yellow-300 hover:bg-yellow-100"
+                  >
+                    {resendingConfirmation ? (
+                      <>
+                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      'Resend confirmation email'
+                    )}
+                  </Button>
+                </div>
+              )}
+
               <Button
                 type="submit"
                 className="w-full"
-                disabled={loading}
+                disabled={loading || googleLoading}
               >
                 {loading ? (
                   <>
