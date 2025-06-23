@@ -18,19 +18,15 @@ export const useAuth = () => {
         setUser(session?.user ?? null);
         setLoading(false);
         
-        // Handle successful sign in events
+        // Handle successful sign in events for OAuth only
         if (event === 'SIGNED_IN' && session?.user) {
           console.log('User signed in successfully:', session.user.email);
-          // For OAuth logins, show success message and redirect
-          if (window.location.pathname === '/') {
+          // Only show toast and redirect for OAuth logins from landing page
+          if (window.location.pathname === '/dashboard' && !sessionStorage.getItem('regularLogin')) {
             toast({
               title: "Welcome!",
               description: "You have successfully signed in.",
             });
-            // Redirect to dashboard after OAuth login
-            setTimeout(() => {
-              window.location.href = '/dashboard';
-            }, 1000);
           }
         }
       }
@@ -50,6 +46,9 @@ export const useAuth = () => {
   const signIn = async (email: string, password: string) => {
     try {
       console.log('Attempting sign in for:', email);
+      // Flag regular login to avoid showing OAuth success message
+      sessionStorage.setItem('regularLogin', 'true');
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -75,6 +74,8 @@ export const useAuth = () => {
           title: "Welcome back!",
           description: "You have successfully signed in.",
         });
+        // Clean up the flag after successful login
+        setTimeout(() => sessionStorage.removeItem('regularLogin'), 1000);
       }
 
       return { data, error };
@@ -92,7 +93,7 @@ export const useAuth = () => {
   const signUp = async (email: string, password: string, fullName: string, company?: string) => {
     try {
       console.log('Attempting sign up for:', email);
-      const redirectUrl = `${window.location.origin}/`;
+      const redirectUrl = `${window.location.origin}/dashboard`;
       
       const { data, error } = await supabase.auth.signUp({
         email,
