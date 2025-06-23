@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -39,9 +38,6 @@ export const useAuth = () => {
           console.log('OAuth sign in successful:', session.user.email);
           setOauthLoading(false);
           
-          // Clean up the URL by removing the hash
-          window.history.replaceState(null, '', window.location.pathname);
-          
           toast({
             title: "Welcome!",
             description: "You have successfully signed in with Google.",
@@ -57,6 +53,15 @@ export const useAuth = () => {
           });
           // Clean up the flag after successful login
           setTimeout(() => sessionStorage.removeItem('regularLogin'), 1000);
+        }
+
+        // Handle email confirmation success
+        if (event === 'SIGNED_IN' && session?.user && window.location.hash.includes('type=signup')) {
+          console.log('Email confirmation successful:', session.user.email);
+          toast({
+            title: "Email confirmed!",
+            description: "Your email has been confirmed and you are now signed in.",
+          });
         }
 
         // Handle OAuth errors

@@ -23,7 +23,7 @@ const Login = () => {
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/projects" replace />;
   }
 
   const validateForm = () => {
@@ -54,7 +54,7 @@ const Login = () => {
     const { error } = await signIn(email, password);
     
     if (!error) {
-      navigate('/dashboard');
+      navigate('/projects');
     } else {
       // Check if it might be an email confirmation issue
       if (error.message?.includes('credentials') || error.message?.includes('not confirmed')) {

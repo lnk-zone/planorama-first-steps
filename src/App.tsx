@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
@@ -48,12 +48,14 @@ const App: React.FC = () => (
             <Route path="/terms" element={<Terms />} />
             <Route path="/privacy" element={<Privacy />} />
             
-            {/* Protected Routes */}
+            {/* Dashboard redirect route - handles OAuth callbacks */}
             <Route path="/dashboard" element={
               <ProtectedRoute>
-                <Projects />
+                <Navigate to="/projects" replace />
               </ProtectedRoute>
             } />
+            
+            {/* Protected Routes */}
             <Route path="/projects" element={
               <ProtectedRoute>
                 <Projects />

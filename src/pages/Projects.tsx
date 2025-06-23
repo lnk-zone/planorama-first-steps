@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import AppLayout from '@/components/AppLayout';
-import CreateProjectModal from '@/components/CreateProjectModal';
+import EnhancedCreateProjectModal, { type EnhancedCreateProjectData } from '@/components/EnhancedCreateProjectModal';
 import EditProjectModal from '@/components/EditProjectModal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { FolderPlus, Search, Filter, Calendar, Edit, Trash2 } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { format } from 'date-fns';
-import type { CreateProjectData } from '@/components/CreateProjectModal';
+import type { GenerationResult } from '@/lib/aiFeatureGenerator';
 
 interface Project {
   id: string;
@@ -96,13 +96,13 @@ const Projects = () => {
   };
 
   const handleEditProject = (project: Project, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent card navigation
+    event.stopPropagation();
     setEditingProject(project);
     setShowEditModal(true);
   };
 
   const handleDeleteProject = async (projectId: string, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent card navigation
+    event.stopPropagation();
     if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
       return;
     }
@@ -130,10 +130,9 @@ const Projects = () => {
     navigate(`/projects/${projectId}`);
   };
 
-  const handleCreateProject = async (projectData: CreateProjectData) => {
-    if (!user) return;
+  const handleCreateProject = async (projectData: EnhancedCreateProjectData): Promise<string> => {
+    if (!user) throw new Error('User not authenticated');
 
-    setLoading(true);
     try {
       const { data: project, error } = await supabase
         .from('projects')
@@ -148,15 +147,19 @@ const Projects = () => {
 
       if (error) throw error;
 
-      showSuccess('Project created successfully');
       setShowCreateModal(false);
       fetchProjects();
+      
+      return project.id;
     } catch (error) {
       console.error('Error creating project:', error);
-      showError('Failed to create project. Please try again.');
-    } finally {
-      setLoading(false);
+      throw new Error('Failed to create project. Please try again.');
     }
+  };
+
+  const handleFeaturesGenerated = (projectId: string, result: GenerationResult) => {
+    // Navigate to the project detail page to show the generated features
+    navigate(`/projects/${projectId}`);
   };
 
   const handleEditSuccess = () => {
@@ -244,7 +247,7 @@ const Projects = () => {
             </h3>
             <p className="text-gray-600 mb-6">
               {projects.length === 0 
-                ? 'Get started by creating your first project'
+                ? 'Get started by creating your first project with AI-powered features'
                 : 'Try adjusting your search or filters'
               }
             </p>
@@ -313,10 +316,11 @@ const Projects = () => {
         )}
 
         {/* Modals */}
-        <CreateProjectModal
+        <EnhancedCreateProjectModal
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
           onSubmit={handleCreateProject}
+          onFeaturesGenerated={handleFeaturesGenerated}
         />
 
         <EditProjectModal

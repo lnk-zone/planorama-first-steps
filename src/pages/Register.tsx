@@ -36,7 +36,7 @@ const Register = () => {
   }>({});
 
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/projects" replace />;
   }
 
   const validateForm = () => {
@@ -86,8 +86,8 @@ const Register = () => {
         // Show message about email confirmation and don't redirect
         console.log('Registration successful, email confirmation required');
       } else {
-        // User is automatically signed in, redirect to dashboard
-        navigate('/dashboard');
+        // User is automatically signed in, redirect to projects
+        navigate('/projects');
       }
     }
     

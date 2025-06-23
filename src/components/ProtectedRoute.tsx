@@ -1,6 +1,7 @@
 
 import { useAuth } from '@/hooks/useAuth';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -8,6 +9,18 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const { user, loading } = useAuth();
+  const location = useLocation();
+
+  useEffect(() => {
+    // Clean up OAuth callback tokens from URL after processing
+    if (location.hash.includes('access_token=') || location.hash.includes('error=')) {
+      // Give the auth hook time to process the tokens
+      const timer = setTimeout(() => {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [location.hash]);
 
   // Show loading spinner while checking auth or processing OAuth
   if (loading) {
