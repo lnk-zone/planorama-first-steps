@@ -12,6 +12,7 @@ import { Loader2, Lock, User, Building, Lightbulb } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import EmailInput from '@/components/ui/email-input';
 import PasswordStrengthIndicator from '@/components/ui/password-strength-indicator';
+import { toast } from '@/hooks/use-toast';
 
 const Register = () => {
   const { user, signUp } = useAuth();
@@ -80,7 +81,8 @@ const Register = () => {
     );
     
     if (!error) {
-      navigate('/dashboard');
+      // Don't navigate immediately - let the user handle email confirmation if needed
+      console.log('Registration successful, waiting for auth state change');
     }
     
     setLoading(false);
@@ -94,18 +96,37 @@ const Register = () => {
 
     setGoogleLoading(true);
     
-    // Use the current origin for the redirect
-    const redirectUrl = `${window.location.origin}/dashboard`;
-    
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: redirectUrl
-      }
-    });
+    try {
+      // Use the actual deployed URL for the redirect
+      const redirectUrl = `${window.location.origin}/dashboard`;
+      console.log('Google OAuth redirect URL:', redirectUrl);
+      
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
+      });
 
-    if (error) {
-      console.error('Google sign up error:', error);
+      if (error) {
+        console.error('Google sign up error:', error);
+        toast({
+          title: "Google Sign Up Error",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Unexpected Google sign up error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to initialize Google sign up. Please try again.",
+        variant: "destructive",
+      });
     }
     
     setGoogleLoading(false);

@@ -17,6 +17,11 @@ export const useAuth = () => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+        
+        // Handle successful sign in events
+        if (event === 'SIGNED_IN' && session?.user) {
+          console.log('User signed in successfully:', session.user.email);
+        }
       }
     );
 
@@ -33,30 +38,49 @@ export const useAuth = () => {
 
   const signIn = async (email: string, password: string) => {
     try {
+      console.log('Attempting sign in for:', email);
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
+        console.error('Sign in error:', error);
+        let errorMessage = error.message;
+        
+        // Provide more helpful error messages
+        if (error.message === 'Invalid login credentials') {
+          errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+        }
+        
         toast({
           title: "Error signing in",
-          description: error.message,
+          description: errorMessage,
           variant: "destructive",
         });
       } else {
         console.log('Sign in successful:', data.user?.email);
+        toast({
+          title: "Welcome back!",
+          description: "You have successfully signed in.",
+        });
       }
 
       return { data, error };
     } catch (error) {
-      console.error('Sign in error:', error);
+      console.error('Unexpected sign in error:', error);
+      toast({
+        title: "Error signing in",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
       return { data: null, error };
     }
   };
 
   const signUp = async (email: string, password: string, fullName: string, company?: string) => {
     try {
+      console.log('Attempting sign up for:', email);
       const redirectUrl = `${window.location.origin}/dashboard`;
       
       const { data, error } = await supabase.auth.signUp({
@@ -72,49 +96,54 @@ export const useAuth = () => {
       });
 
       if (error) {
+        console.error('Sign up error:', error);
+        let errorMessage = error.message;
+        
+        // Provide more helpful error messages
+        if (error.message.includes('already registered')) {
+          errorMessage = 'This email is already registered. Please try signing in instead.';
+        }
+        
         toast({
           title: "Error creating account",
-          description: error.message,
+          description: errorMessage,
           variant: "destructive",
         });
       } else if (data.user) {
         console.log('Sign up successful:', data.user.email);
         
-        // Create user profile - defer this to avoid blocking the auth flow
-        setTimeout(async () => {
-          try {
-            const { error: profileError } = await supabase
-              .from('user_profiles')
-              .insert({
-                id: data.user.id,
-                email: data.user.email!,
-                full_name: fullName,
-                company: company || null,
-              });
-
-            if (profileError) {
-              console.error('Error creating profile:', profileError);
-              // Don't show error to user as this is a background operation
-            } else {
-              console.log('Profile created successfully');
-            }
-          } catch (err) {
-            console.error('Profile creation failed:', err);
-          }
-        }, 100);
+        // Check if user needs email confirmation
+        if (!data.session) {
+          toast({
+            title: "Account created!",
+            description: "Please check your email to confirm your account before signing in.",
+          });
+        } else {
+          toast({
+            title: "Welcome!",
+            description: "Your account has been created successfully.",
+          });
+        }
       }
 
       return { data, error };
     } catch (error) {
-      console.error('Sign up error:', error);
+      console.error('Unexpected sign up error:', error);
+      toast({
+        title: "Error creating account",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
       return { data: null, error };
     }
   };
 
   const signOut = async () => {
     try {
+      console.log('Attempting sign out');
       const { error } = await supabase.auth.signOut();
       if (error) {
+        console.error('Sign out error:', error);
         toast({
           title: "Error signing out",
           description: error.message,
@@ -122,10 +151,14 @@ export const useAuth = () => {
         });
       } else {
         console.log('Sign out successful');
+        toast({
+          title: "Signed out",
+          description: "You have been signed out successfully.",
+        });
       }
       return { error };
     } catch (error) {
-      console.error('Sign out error:', error);
+      console.error('Unexpected sign out error:', error);
       return { error };
     }
   };

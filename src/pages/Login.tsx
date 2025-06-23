@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Separator } from '@/components/ui/separator';
 import { Loader2, Mail, Lock, Lightbulb } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
 
 const Login = () => {
   const { user, signIn } = useAuth();
@@ -59,18 +60,37 @@ const Login = () => {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     
-    // Use the current origin for the redirect
-    const redirectUrl = `${window.location.origin}/dashboard`;
-    
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: redirectUrl
-      }
-    });
+    try {
+      // Use the actual deployed URL for the redirect
+      const redirectUrl = `${window.location.origin}/dashboard`;
+      console.log('Google OAuth redirect URL:', redirectUrl);
+      
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
+      });
 
-    if (error) {
-      console.error('Google sign in error:', error);
+      if (error) {
+        console.error('Google sign in error:', error);
+        toast({
+          title: "Google Sign In Error",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Unexpected Google sign in error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to initialize Google sign in. Please try again.",
+        variant: "destructive",
+      });
     }
     
     setGoogleLoading(false);
