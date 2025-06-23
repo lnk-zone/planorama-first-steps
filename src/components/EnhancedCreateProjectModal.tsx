@@ -3,34 +3,33 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
-import { Zap, Plus, X, Users, Target, DollarSign, FileText, Settings, Lightbulb } from 'lucide-react';
-import { AIFeatureGenerator, type GenerationResult, type GenerationProgressData } from '@/lib/aiFeatureGenerator';
+import { FormField } from '@/components/ui/enhanced-form';
 import GenerationProgress from '@/components/GenerationProgress';
+import { Sparkles, FolderPlus, Loader2 } from 'lucide-react';
+import { useFormValidation } from '@/hooks/useFormValidation';
+import { useEmailValidation } from '@/hooks/useEmailValidation';
+import { generateFeatures, type GenerationResult } from '@/lib/aiFeatureGenerator';
 import { toast } from '@/hooks/use-toast';
 
 export interface EnhancedCreateProjectData {
   title: string;
   description: string;
   project_type: string;
-  generateFeatures: boolean;
-  appType?: 'saas' | 'marketplace' | 'ecommerce' | 'ai_tool' | 'social' | 'productivity' | 'other';
-  targetUsers?: string;
-  coreUserActions?: string;
-  monetizationModel?: 'subscription' | 'one_time' | 'freemium' | 'ads' | 'marketplace_fees' | 'other';
-  specificRequirements?: string[];
-  complexity?: 'simple' | 'medium' | 'complex';
+  target_audience?: string;
+  key_features?: string;
+  monetization?: string;
+  tech_stack?: string;
+  timeline?: string;
+  budget?: string;
 }
 
 interface EnhancedCreateProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (projectData: EnhancedCreateProjectData) => Promise<string>;
+  onSubmit: (data: EnhancedCreateProjectData) => Promise<string>;
   onFeaturesGenerated?: (projectId: string, result: GenerationResult) => void;
 }
 
@@ -40,225 +39,101 @@ const EnhancedCreateProjectModal: React.FC<EnhancedCreateProjectModalProps> = ({
   onSubmit,
   onFeaturesGenerated
 }) => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<EnhancedCreateProjectData>({
     title: '',
     description: '',
-    project_type: 'web_app',
-    generateFeatures: true,
-    appType: 'other' as const,
-    targetUsers: '',
-    coreUserActions: '',
-    monetizationModel: 'freemium' as const,
-    specificRequirements: [''] as string[],
-    complexity: [2] as number[],
+    project_type: '',
+    target_audience: '',
+    key_features: '',
+    monetization: '',
+    tech_stack: '',
+    timeline: '',
+    budget: ''
   });
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [progress, setProgress] = useState<GenerationProgressData | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [showProgress, setShowProgress] = useState(false);
+  const [progressStep, setProgressStep] = useState(0);
 
-  const projectTypes = [
-    { value: 'web_app', label: 'Web App' },
-    { value: 'mobile_app', label: 'Mobile App' },
-    { value: 'saas', label: 'SaaS Platform' },
-    { value: 'ecommerce', label: 'E-commerce' },
-    { value: 'cms', label: 'CMS' },
-    { value: 'api', label: 'API/Backend' },
-    { value: 'dashboard', label: 'Dashboard' },
-    { value: 'portfolio', label: 'Portfolio/Blog' },
-    { value: 'other', label: 'Other' },
-  ];
+  const { errors, validateField, validateForm, clearErrors } = useFormValidation();
 
-  const appTypeOptions = [
-    { value: 'saas', label: 'SaaS Platform', icon: '🏢' },
-    { value: 'marketplace', label: 'Marketplace', icon: '🛒' },
-    { value: 'ecommerce', label: 'E-commerce', icon: '💳' },
-    { value: 'ai_tool', label: 'AI Tool', icon: '🤖' },
-    { value: 'social', label: 'Social Platform', icon: '👥' },
-    { value: 'productivity', label: 'Productivity Tool', icon: '📊' },
-    { value: 'other', label: 'Other', icon: '⚡' }
-  ];
-
-  const monetizationOptions = [
-    { value: 'freemium', label: 'Freemium' },
-    { value: 'subscription', label: 'Subscription' },
-    { value: 'one_time', label: 'One-time Purchase' },
-    { value: 'marketplace_fees', label: 'Marketplace Fees' },
-    { value: 'ads', label: 'Advertising' },
-    { value: 'other', label: 'Other' }
-  ];
-
-  const getComplexityLabel = (value: number) => {
-    switch (value) {
-      case 1: return 'simple';
-      case 2: return 'medium';
-      case 3: return 'complex';
-      default: return 'medium';
+  const handleInputChange = (field: keyof EnhancedCreateProjectData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      validateField(field, value, getValidationRules());
     }
   };
 
-  const getFeatureCount = (complexityLevel: string) => {
-    return { simple: 10, medium: 15, complex: 22 }[complexityLevel] || 15;
-  };
+  const getValidationRules = () => ({
+    title: { required: true, minLength: 2, maxLength: 100 },
+    description: { required: true, minLength: 10, maxLength: 500 },
+    project_type: { required: true }
+  });
 
-  const handleAddRequirement = () => {
-    setFormData(prev => ({
-      ...prev,
-      specificRequirements: [...prev.specificRequirements, '']
-    }));
-  };
-
-  const handleRemoveRequirement = (index: number) => {
-    if (formData.specificRequirements.length > 1) {
-      setFormData(prev => ({
-        ...prev,
-        specificRequirements: prev.specificRequirements.filter((_, i) => i !== index)
-      }));
+  const handleSubmit = async (generateAI: boolean = false) => {
+    const rules = getValidationRules();
+    
+    if (!validateForm(formData, rules)) {
+      return;
     }
-  };
-
-  const handleRequirementChange = (index: number, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      specificRequirements: prev.specificRequirements.map((req, i) => i === index ? value : req)
-    }));
-  };
-
-  const validateForm = () => {
-    if (!formData.title.trim()) {
-      toast({
-        title: "Project title required",
-        description: "Please enter a project title.",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    if (!formData.description.trim()) {
-      toast({
-        title: "Project description required",
-        description: "Please provide a project description.",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    if (formData.generateFeatures) {
-      if (!formData.targetUsers.trim()) {
-        toast({
-          title: "Target users required",
-          description: "Please specify who will use this app for AI feature generation.",
-          variant: "destructive",
-        });
-        return false;
-      }
-
-      if (!formData.coreUserActions.trim()) {
-        toast({
-          title: "Core user actions required",
-          description: "Please describe what users should be able to do for AI feature generation.",
-          variant: "destructive",
-        });
-        return false;
-      }
-    }
-
-    return true;
-  };
-
-  const handleSubmit = async () => {
-    if (!validateForm()) return;
-
-    setIsSubmitting(true);
 
     try {
-      // Create the project first
-      const projectData: EnhancedCreateProjectData = {
-        title: formData.title,
-        description: formData.description,
-        project_type: formData.project_type,
-        generateFeatures: formData.generateFeatures,
-        appType: formData.appType,
-        targetUsers: formData.targetUsers,
-        coreUserActions: formData.coreUserActions,
-        monetizationModel: formData.monetizationModel,
-        specificRequirements: formData.specificRequirements.filter(req => req.trim() !== ''),
-        complexity: getComplexityLabel(formData.complexity[0]) as 'simple' | 'medium' | 'complex',
-      };
+      if (generateAI) {
+        setAiLoading(true);
+        setShowProgress(true);
+        setProgressStep(1);
 
-      const projectId = await onSubmit(projectData);
+        // Create project first
+        const projectId = await onSubmit(formData);
+        setProgressStep(2);
 
-      // If AI feature generation is enabled, generate features
-      if (formData.generateFeatures && projectId) {
-        setIsGenerating(true);
-        setProgress({ 
-          stage: 'analyzing', 
-          progress: 0, 
-          currentAction: 'Starting AI feature generation...' 
+        // Generate features with AI
+        const result = await generateFeatures(projectId, {
+          title: formData.title,
+          description: formData.description,
+          projectType: formData.project_type,
+          targetAudience: formData.target_audience,
+          keyFeatures: formData.key_features,
+          monetization: formData.monetization,
+          techStack: formData.tech_stack,
+          timeline: formData.timeline,
+          budget: formData.budget
         });
 
-        try {
-          const generator = new AIFeatureGenerator((progress) => {
-            setProgress(progress);
-          });
+        setProgressStep(3);
 
-          // Prepare enhanced input data
-          const enhancedInput = {
-            projectTitle: formData.title,
-            projectDescription: formData.description,
-            appType: formData.appType,
-            targetUsers: formData.targetUsers,
-            coreUserActions: formData.coreUserActions,
-            monetizationModel: formData.monetizationModel,
-            specificRequirements: formData.specificRequirements.filter(req => req.trim() !== ''),
-            technicalPreferences: '',
-            complexity: getComplexityLabel(formData.complexity[0]) as 'simple' | 'medium' | 'complex',
-            includeAdvancedFeatures: formData.complexity[0] >= 3
-          };
-
-          const result = await generator.generateFeaturesWithDependencies(
-            projectId,
-            formData.description,
-            formData.appType,
-            enhancedInput,
-            false
-          );
-
-          toast({
-            title: "Project created with AI features!",
-            description: `Created ${result.features.length} features with ${result.userStories.length} user stories.`,
-          });
-
+        // Close modal and show progress result
+        setTimeout(() => {
+          setShowProgress(false);
+          setAiLoading(false);
+          resetForm();
+          onClose();
           onFeaturesGenerated?.(projectId, result);
-        } catch (error) {
-          console.error('Feature generation failed:', error);
-          toast({
-            title: "Project created successfully",
-            description: "However, feature generation failed. You can generate features later from the project page.",
-            variant: "destructive",
-          });
-        }
+        }, 1000);
+
       } else {
+        setLoading(true);
+        await onSubmit(formData);
+        resetForm();
+        onClose();
+        
         toast({
-          title: "Project created successfully!",
-          description: "Your new project has been created.",
+          title: "Project created",
+          description: "Your project has been created successfully.",
         });
       }
-
-      onClose();
-      resetForm();
     } catch (error) {
-      console.error('Project creation failed:', error);
+      console.error('Error creating project:', error);
       toast({
-        title: "Error creating project",
-        description: "Failed to create project. Please try again.",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create project. Please try again.",
         variant: "destructive",
       });
     } finally {
-      setIsSubmitting(false);
-      setIsGenerating(false);
-      setProgress(null);
+      setLoading(false);
+      setAiLoading(false);
+      setShowProgress(false);
     }
   };
 
@@ -266,323 +141,218 @@ const EnhancedCreateProjectModal: React.FC<EnhancedCreateProjectModalProps> = ({
     setFormData({
       title: '',
       description: '',
-      project_type: 'web_app',
-      generateFeatures: true,
-      appType: 'other',
-      targetUsers: '',
-      coreUserActions: '',
-      monetizationModel: 'freemium',
-      specificRequirements: [''],
-      complexity: [2],
+      project_type: '',
+      target_audience: '',
+      key_features: '',
+      monetization: '',
+      tech_stack: '',
+      timeline: '',
+      budget: ''
     });
-    setShowAdvanced(false);
+    clearErrors();
+    setProgressStep(0);
   };
 
-  const mapProgressStage = (stage: GenerationProgressData['stage']) => {
-    switch (stage) {
-      case 'analyzing': return 'analyzing';
-      case 'generating_features': return 'creating_features';
-      case 'creating_stories': return 'generating_stories';
-      case 'calculating_order': return 'generating_stories';
-      case 'complete': return 'complete';
-      default: return 'analyzing';
-    }
+  const handleClose = () => {
+    if (loading || aiLoading) return;
+    resetForm();
+    onClose();
   };
+
+  // Show progress modal during AI generation
+  if (showProgress) {
+    return (
+      <GenerationProgress
+        isOpen={true}
+        step={progressStep}
+        onClose={() => {}} // Prevent closing during generation
+      />
+    );
+  }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Lightbulb className="h-5 w-5" />
+            <FolderPlus className="h-5 w-5" />
             Create New Project
           </DialogTitle>
         </DialogHeader>
 
-        {isGenerating && progress ? (
-          <GenerationProgress
-            stage={mapProgressStage(progress.stage)}
-            progress={progress.progress}
-            currentAction={progress.currentAction}
-            onCancel={() => {
-              setIsGenerating(false);
-              setProgress(null);
-            }}
-          />
-        ) : (
-          <div className="space-y-6">
-            {/* Basic Project Information */}
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Project Title *</Label>
-                  <Input
-                    id="title"
-                    placeholder="Enter project title"
-                    value={formData.title}
-                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                    disabled={isSubmitting || isGenerating}
-                  />
-                </div>
+        <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+          {/* Basic Information */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
+            
+            <FormField
+              label="Project Title"
+              required
+              value={formData.title}
+              onChange={(e) => handleInputChange('title', e.target.value)}
+              placeholder="Enter project title"
+              error={errors.title}
+              disabled={loading || aiLoading}
+            />
 
-                <div className="space-y-2">
-                  <Label htmlFor="project_type">Project Type</Label>
-                  <Select 
-                    value={formData.project_type} 
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, project_type: value }))}
-                    disabled={isSubmitting || isGenerating}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {projectTypes.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description">Project Description *</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Describe your project. What does it do? What problem does it solve?"
-                  value={formData.description}
-                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  rows={3}
-                  className="resize-none"
-                  disabled={isSubmitting || isGenerating}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Description <span className="text-red-500">*</span></Label>
+              <Textarea
+                id="description"
+                placeholder="Describe what your project will do and its main purpose"
+                value={formData.description}
+                onChange={(e) => handleInputChange('description', e.target.value)}
+                className={errors.description ? 'border-red-500' : ''}
+                disabled={loading || aiLoading}
+                rows={3}
+              />
+              {errors.description && (
+                <p className="text-sm text-red-500">{errors.description}</p>
+              )}
             </div>
 
-            {/* AI Feature Generation Toggle */}
-            <div className="border rounded-lg p-4 bg-gradient-to-r from-purple-50 to-blue-50">
-              <div className="flex items-center space-x-2 mb-3">
-                <Checkbox 
-                  id="generateFeatures"
-                  checked={formData.generateFeatures}
-                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, generateFeatures: checked as boolean }))}
-                  disabled={isSubmitting || isGenerating}
-                />
-                <Label htmlFor="generateFeatures" className="flex items-center gap-2 font-medium">
-                  <Zap className="h-4 w-4 text-purple-600" />
-                  Generate features with AI
-                </Label>
-                <Badge variant="secondary" className="bg-purple-100 text-purple-800">
-                  Recommended
-                </Badge>
-              </div>
-              <p className="text-sm text-gray-600 ml-6">
-                Automatically generate comprehensive features and user stories based on your project details.
-              </p>
-            </div>
-
-            {/* AI Generation Fields */}
-            {formData.generateFeatures && (
-              <div className="space-y-4 border-l-4 border-purple-200 pl-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Target className="h-4 w-4" />
-                      App Type *
-                    </Label>
-                    <Select 
-                      value={formData.appType} 
-                      onValueChange={(value: any) => setFormData(prev => ({ ...prev, appType: value }))}
-                      disabled={isSubmitting || isGenerating}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {appTypeOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            <span className="flex items-center gap-2">
-                              <span>{option.icon}</span>
-                              {option.label}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Settings className="h-4 w-4" />
-                      Complexity Level *
-                    </Label>
-                    <div className="space-y-2">
-                      <Slider
-                        value={formData.complexity}
-                        onValueChange={(value) => setFormData(prev => ({ ...prev, complexity: value }))}
-                        max={3}
-                        min={1}
-                        step={1}
-                        className="w-full"
-                        disabled={isSubmitting || isGenerating}
-                      />
-                      <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>Simple</span>
-                        <span className="font-medium">
-                          {getComplexityLabel(formData.complexity[0]).charAt(0).toUpperCase() + getComplexityLabel(formData.complexity[0]).slice(1)} 
-                          ({getFeatureCount(getComplexityLabel(formData.complexity[0]))} features)
-                        </span>
-                        <span>Complex</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Target Users *
-                  </Label>
-                  <Textarea
-                    placeholder="Who will use this app? (e.g., small business owners, freelancers, students, teachers)"
-                    value={formData.targetUsers}
-                    onChange={(e) => setFormData(prev => ({ ...prev, targetUsers: e.target.value }))}
-                    rows={2}
-                    className="resize-none"
-                    disabled={isSubmitting || isGenerating}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Target className="h-4 w-4" />
-                    Core User Actions *
-                  </Label>
-                  <Textarea
-                    placeholder="What should users be able to do? (e.g., create projects, collaborate with team, track progress)"
-                    value={formData.coreUserActions}
-                    onChange={(e) => setFormData(prev => ({ ...prev, coreUserActions: e.target.value }))}
-                    rows={2}
-                    className="resize-none"
-                    disabled={isSubmitting || isGenerating}
-                  />
-                </div>
-
-                {/* Advanced Options */}
-                <div className="border-t pt-4">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowAdvanced(!showAdvanced)}
-                    className="mb-4"
-                    disabled={isSubmitting || isGenerating}
-                  >
-                    <Settings className="h-4 w-4 mr-2" />
-                    {showAdvanced ? 'Hide' : 'Show'} Advanced Options
-                  </Button>
-
-                  {showAdvanced && (
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                          <DollarSign className="h-4 w-4" />
-                          Monetization Model
-                        </Label>
-                        <Select 
-                          value={formData.monetizationModel} 
-                          onValueChange={(value: any) => setFormData(prev => ({ ...prev, monetizationModel: value }))}
-                          disabled={isSubmitting || isGenerating}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {monetizationOptions.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                          <Plus className="h-4 w-4" />
-                          Specific Requirements
-                        </Label>
-                        <div className="space-y-2">
-                          {formData.specificRequirements.map((requirement, index) => (
-                            <div key={index} className="flex gap-2">
-                              <Textarea
-                                placeholder={`Requirement ${index + 1} (e.g., "Must integrate with Stripe", "Similar to Slack channels")`}
-                                value={requirement}
-                                onChange={(e) => handleRequirementChange(index, e.target.value)}
-                                rows={1}
-                                className="resize-none flex-1"
-                                disabled={isSubmitting || isGenerating}
-                              />
-                              {formData.specificRequirements.length > 1 && (
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  onClick={() => handleRemoveRequirement(index)}
-                                  className="shrink-0"
-                                  disabled={isSubmitting || isGenerating}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </div>
-                          ))}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleAddRequirement}
-                            className="w-full"
-                            disabled={isSubmitting || isGenerating}
-                          >
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add Another Requirement
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex justify-between">
-              <Button 
-                variant="outline" 
-                onClick={onClose}
-                disabled={isSubmitting || isGenerating}
+            <div className="space-y-2">
+              <Label htmlFor="project_type">Project Type <span className="text-red-500">*</span></Label>
+              <Select
+                value={formData.project_type}
+                onValueChange={(value) => handleInputChange('project_type', value)}
+                disabled={loading || aiLoading}
               >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={isSubmitting || isGenerating}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-              >
-                {isSubmitting || isGenerating ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                    {isGenerating ? 'Generating Features...' : 'Creating Project...'}
-                  </>
-                ) : (
-                  <>
-                    <Lightbulb className="h-4 w-4 mr-2" />
-                    {formData.generateFeatures ? 'Create Project with AI' : 'Create Project'}
-                  </>
-                )}
-              </Button>
+                <SelectTrigger className={errors.project_type ? 'border-red-500' : ''}>
+                  <SelectValue placeholder="Select project type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="web_app">Web Application</SelectItem>
+                  <SelectItem value="mobile_app">Mobile App</SelectItem>
+                  <SelectItem value="saas">SaaS Platform</SelectItem>
+                  <SelectItem value="ecommerce">E-commerce</SelectItem>
+                  <SelectItem value="cms">Content Management System</SelectItem>
+                  <SelectItem value="api">API/Backend Service</SelectItem>
+                  <SelectItem value="dashboard">Dashboard/Analytics</SelectItem>
+                  <SelectItem value="portfolio">Portfolio/Blog</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              {errors.project_type && (
+                <p className="text-sm text-red-500">{errors.project_type}</p>
+              )}
             </div>
           </div>
-        )}
+
+          {/* Enhanced Details for AI Generation */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary-500" />
+              AI Enhancement Details (Optional)
+            </h3>
+            <p className="text-sm text-gray-600">
+              Provide additional details to help AI generate better features and user stories for your project.
+            </p>
+
+            <FormField
+              label="Target Audience"
+              value={formData.target_audience || ''}
+              onChange={(e) => handleInputChange('target_audience', e.target.value)}
+              placeholder="Who will use this application? (e.g., small business owners, students, developers)"
+              disabled={loading || aiLoading}
+            />
+
+            <div className="space-y-2">
+              <Label htmlFor="key_features">Key Features & Requirements</Label>
+              <Textarea
+                id="key_features"
+                placeholder="What are the main features you want? (e.g., user authentication, payment processing, real-time chat)"
+                value={formData.key_features || ''}
+                onChange={(e) => handleInputChange('key_features', e.target.value)}
+                disabled={loading || aiLoading}
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                label="Monetization Model"
+                value={formData.monetization || ''}
+                onChange={(e) => handleInputChange('monetization', e.target.value)}
+                placeholder="How will you make money? (e.g., subscription, one-time purchase, ads)"
+                disabled={loading || aiLoading}
+              />
+
+              <FormField
+                label="Tech Stack Preference"
+                value={formData.tech_stack || ''}
+                onChange={(e) => handleInputChange('tech_stack', e.target.value)}
+                placeholder="Preferred technologies (e.g., React, Node.js, PostgreSQL)"
+                disabled={loading || aiLoading}
+              />
+
+              <FormField
+                label="Timeline"
+                value={formData.timeline || ''}
+                onChange={(e) => handleInputChange('timeline', e.target.value)}
+                placeholder="When do you want to launch? (e.g., 3 months, Q1 2024)"
+                disabled={loading || aiLoading}
+              />
+
+              <FormField
+                label="Budget Range"
+                value={formData.budget || ''}
+                onChange={(e) => handleInputChange('budget', e.target.value)}
+                placeholder="Development budget (e.g., $10k, bootstrapped)"
+                disabled={loading || aiLoading}
+              />
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClose}
+              disabled={loading || aiLoading}
+              className="sm:order-1"
+            >
+              Cancel
+            </Button>
+            
+            <Button
+              type="button"
+              onClick={() => handleSubmit(false)}
+              disabled={loading || aiLoading}
+              variant="outline"
+              className="sm:order-2"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create Project Only'
+              )}
+            </Button>
+
+            <Button
+              type="button"
+              onClick={() => handleSubmit(true)}
+              disabled={loading || aiLoading}
+              className="sm:order-3 flex-1"
+            >
+              {aiLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating with AI...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Create Project with AI
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

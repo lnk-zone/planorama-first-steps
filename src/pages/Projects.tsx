@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -11,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FolderPlus, Search, Filter, Calendar, Edit, Trash2 } from 'lucide-react';
+import { FolderPlus, Search, Filter, Calendar, Edit, Trash2, CheckCircle } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { format } from 'date-fns';
 import type { GenerationResult } from '@/lib/aiFeatureGenerator';
@@ -36,12 +35,26 @@ const Projects = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [generationSuccess, setGenerationSuccess] = useState<{ projectId: string; projectTitle: string } | null>(null);
   const navigate = useNavigate();
   const { showSuccess, showError } = useNotifications();
 
   useEffect(() => {
     fetchProjects();
   }, [user]);
+
+  // Check for generation success from URL params
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const generatedProjectId = urlParams.get('generated');
+    const projectTitle = urlParams.get('title');
+    
+    if (generatedProjectId && projectTitle) {
+      setGenerationSuccess({ projectId: generatedProjectId, projectTitle });
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   const fetchProjects = async () => {
     if (!user) return;
@@ -158,12 +171,20 @@ const Projects = () => {
   };
 
   const handleFeaturesGenerated = (projectId: string, result: GenerationResult) => {
-    // Navigate to the project detail page to show the generated features
-    navigate(`/projects/${projectId}`);
+    const project = projects.find(p => p.id === projectId);
+    const projectTitle = project?.title || 'Project';
+    
+    // Navigate back to projects with success indication
+    navigate(`/projects?generated=${projectId}&title=${encodeURIComponent(projectTitle)}`);
   };
 
   const handleEditSuccess = () => {
     fetchProjects();
+  };
+
+  const handleViewGeneratedFeatures = (projectId: string) => {
+    setGenerationSuccess(null);
+    navigate(`/projects/${projectId}/features?view=generated`);
   };
 
   const filteredProjects = projects.filter((project) => {
@@ -195,6 +216,40 @@ const Projects = () => {
   return (
     <AppLayout>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Generation Success Banner */}
+        {generationSuccess && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="h-6 w-6 text-green-600" />
+                <div>
+                  <h3 className="text-lg font-semibold text-green-900">
+                    Features Generated Successfully!
+                  </h3>
+                  <p className="text-green-700">
+                    AI has generated features and user stories for "{generationSuccess.projectTitle}"
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => handleViewGeneratedFeatures(generationSuccess.projectId)}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  View Features
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setGenerationSuccess(null)}
+                  className="border-green-300 text-green-700 hover:bg-green-50"
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
           <div className="flex items-center gap-3 mb-4 sm:mb-0">
