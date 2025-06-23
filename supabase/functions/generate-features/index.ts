@@ -67,6 +67,7 @@ CRITICAL INSTRUCTIONS - NO SHORTCUTS OR ABBREVIATIONS:
 ⚠️  Each feature description must be at least 100 words explaining implementation details
 ⚠️  Each user story must have specific, actionable acceptance criteria
 ⚠️  NO abbreviations or shortcuts - write every single detail
+⚠️  Leverage the **complexity** and **includeAdvancedFeatures** settings to determine how sophisticated and technically challenging each feature should be. Higher values should inspire advanced workflows, integrations, or automation rather than simply increasing feature count.
 
 FORBIDDEN - DO NOT USE:
 - "Similar to the above feature..."
@@ -83,6 +84,7 @@ CRITICAL PROJECT CONTEXT:
 **Core Actions:** ${enhancedInput.coreUserActions}
 **Monetization:** ${enhancedInput.monetizationModel}
 **Complexity:** ${enhancedInput.complexity} (${featureCount} total features)
+**Include Advanced Features:** ${enhancedInput.includeAdvancedFeatures}
 **Specific Requirements:** ${requirements}
 ${enhancedInput.technicalPreferences ? `**Technical Preferences:** ${enhancedInput.technicalPreferences}` : ''}
 
@@ -98,14 +100,15 @@ MANDATORY FEATURE REQUIREMENTS - WRITE ALL OF THESE OUT COMPLETELY:
    - Account Settings & Preferences (complete customization options)
 
 2. **CORE BUSINESS FEATURES (${Math.floor(featureCount * 0.5)}-${Math.ceil(featureCount * 0.6)} features) - WRITE EVERY DETAIL:**
-   Based on the core user actions: "${enhancedInput.coreUserActions}"
+   Start from the core actions: "${enhancedInput.coreUserActions}" and propose any other essential or common functionality a ${appType} aimed at ${enhancedInput.targetUsers} would require.
    - Implement the primary functionality described (complete specifications)
    - Include data management and CRUD operations (complete database interactions)
    - Add search, filtering, and organization features (complete UI/UX details)
    - Ensure mobile responsiveness (complete responsive design requirements)
+   - Consider the project complexity and ${enhancedInput.includeAdvancedFeatures ? 'include sophisticated features such as advanced analytics or automation when applicable' : 'keep features straightforward unless complexity demands more detail'}
 
 3. **${appType.toUpperCase()} SPECIFIC FEATURES - WRITE EVERY DETAIL:**
-   Include these essential ${appType} features with complete specifications: ${appSpecificGuidance}
+   Use the following guidance for typical ${appType} apps: ${appSpecificGuidance}. Expand on it with other innovative or standard features that are common for this app type.
 
 4. **MONETIZATION FEATURES (if ${enhancedInput.monetizationModel}) - WRITE EVERY DETAIL:**
    ${enhancedInput.monetizationModel === 'subscription' ? '- Subscription management, billing integration, plan selection (complete payment flow)' : ''}
@@ -118,6 +121,9 @@ MANDATORY FEATURE REQUIREMENTS - WRITE ALL OF THESE OUT COMPLETELY:
    - Help system & user onboarding (complete support infrastructure)
    - Data security & privacy controls (complete security implementation)
    - Performance optimization (complete optimization strategies)
+
+6. **VALUE-ADD & INNOVATIVE FEATURES - WRITE EVERY DETAIL:**
+   Identify additional features that would significantly enhance the application for ${enhancedInput.targetUsers}. Consider the project context, app type, and user needs to propose innovative or high-impact ideas that were not explicitly requested.
 
 ENHANCED USER STORY GENERATION REQUIREMENTS:
 For EVERY SINGLE user story, you MUST include:
