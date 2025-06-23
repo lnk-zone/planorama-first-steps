@@ -13,6 +13,7 @@ export const useAuth = () => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.email);
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
@@ -21,6 +22,7 @@ export const useAuth = () => {
 
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session check:', session?.user?.email);
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -42,6 +44,8 @@ export const useAuth = () => {
           description: error.message,
           variant: "destructive",
         });
+      } else {
+        console.log('Sign in successful:', data.user?.email);
       }
 
       return { data, error };
@@ -53,7 +57,7 @@ export const useAuth = () => {
 
   const signUp = async (email: string, password: string, fullName: string, company?: string) => {
     try {
-      const redirectUrl = `${window.location.origin}/`;
+      const redirectUrl = `${window.location.origin}/dashboard`;
       
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -74,19 +78,30 @@ export const useAuth = () => {
           variant: "destructive",
         });
       } else if (data.user) {
-        // Create user profile
-        const { error: profileError } = await supabase
-          .from('user_profiles')
-          .insert({
-            id: data.user.id,
-            email: data.user.email!,
-            full_name: fullName,
-            company: company || null,
-          });
+        console.log('Sign up successful:', data.user.email);
+        
+        // Create user profile - defer this to avoid blocking the auth flow
+        setTimeout(async () => {
+          try {
+            const { error: profileError } = await supabase
+              .from('user_profiles')
+              .insert({
+                id: data.user.id,
+                email: data.user.email!,
+                full_name: fullName,
+                company: company || null,
+              });
 
-        if (profileError) {
-          console.error('Error creating profile:', profileError);
-        }
+            if (profileError) {
+              console.error('Error creating profile:', profileError);
+              // Don't show error to user as this is a background operation
+            } else {
+              console.log('Profile created successfully');
+            }
+          } catch (err) {
+            console.error('Profile creation failed:', err);
+          }
+        }, 100);
       }
 
       return { data, error };
@@ -105,6 +120,8 @@ export const useAuth = () => {
           description: error.message,
           variant: "destructive",
         });
+      } else {
+        console.log('Sign out successful');
       }
       return { error };
     } catch (error) {

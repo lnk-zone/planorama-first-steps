@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -93,6 +94,7 @@ const Register = () => {
 
     setGoogleLoading(true);
     
+    // Use the current origin for the redirect
     const redirectUrl = `${window.location.origin}/dashboard`;
     
     const { error } = await supabase.auth.signInWithOAuth({
