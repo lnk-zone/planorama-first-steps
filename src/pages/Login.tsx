@@ -1,19 +1,19 @@
-
-import { useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Mail, Lock, Lightbulb } from 'lucide-react';
+import { Loader2, Mail, Lock, Lightbulb, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
 const Login = () => {
   const { user, signIn, resendConfirmation } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,6 +21,17 @@ const Login = () => {
   const [showResendConfirmation, setShowResendConfirmation] = useState(false);
   const [resendingConfirmation, setResendingConfirmation] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+
+  // Get message and email from navigation state (from registration redirect)
+  const redirectMessage = location.state?.message;
+  const redirectEmail = location.state?.email;
+
+  useEffect(() => {
+    // Pre-fill email if coming from registration
+    if (redirectEmail) {
+      setEmail(redirectEmail);
+    }
+  }, [redirectEmail]);
 
   if (user) {
     return <Navigate to="/projects" replace />;
@@ -130,6 +141,21 @@ const Login = () => {
           <h1 className="text-display">Planorama</h1>
           <p className="text-body mt-2">AI-powered app planning platform</p>
         </div>
+
+        {/* Show message from registration redirect */}
+        {redirectMessage && (
+          <Card className="mb-6 border-green-200 bg-green-50">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-green-800 font-medium">Registration Successful!</p>
+                  <p className="text-green-700 text-sm mt-1">{redirectMessage}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader className="space-y-1">

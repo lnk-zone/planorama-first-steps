@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -81,10 +80,23 @@ const Register = () => {
     );
     
     if (!error && data.user) {
-      // Don't navigate immediately if email confirmation is required
       if (!data.session) {
-        // Show message about email confirmation and don't redirect
+        // Email confirmation is required - redirect to login page
         console.log('Registration successful, email confirmation required');
+        toast({
+          title: "Account created successfully!",
+          description: "Please check your email to confirm your account, then return to sign in.",
+        });
+        
+        // Redirect to login page after a short delay
+        setTimeout(() => {
+          navigate('/login', { 
+            state: { 
+              message: 'Please check your email and confirm your account before signing in.',
+              email: formData.email 
+            }
+          });
+        }, 2000);
       } else {
         // User is automatically signed in, redirect to projects
         navigate('/projects');

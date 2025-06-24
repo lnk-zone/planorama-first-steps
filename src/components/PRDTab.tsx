@@ -9,6 +9,8 @@ import { Separator } from '@/components/ui/separator';
 import { FileText, Zap, Download, Eye, Clock, Users, Target, Wrench, RefreshCw } from 'lucide-react';
 import { usePRD } from '@/hooks/usePRD';
 import { useParams } from 'react-router-dom';
+import PRDSectionEditor from './PRDSectionEditor';
+import { toast } from 'sonner';
 
 interface PRDTabProps {
   projectTitle: string;
@@ -33,6 +35,30 @@ const PRDTab: React.FC<PRDTabProps> = ({ projectTitle, projectDescription }) => 
       await exportPRD(format);
     } catch (error) {
       // Error handling is done in the hook
+    }
+  };
+
+  const handleSectionSave = async (sectionIndex: number, newContent: string) => {
+    if (!prd) return;
+    
+    try {
+      // Update the local PRD state with the new content
+      const updatedSections = [...prd.sections];
+      updatedSections[sectionIndex] = {
+        ...updatedSections[sectionIndex],
+        content: newContent
+      };
+      
+      // Here you would typically call an API to save the updated section
+      // For now, we'll just show a success message
+      console.log('Section updated:', { sectionIndex, newContent: newContent.substring(0, 100) + '...' });
+      
+      // In a real implementation, you'd call something like:
+      // await updatePRDSection(prd.id, sectionIndex, newContent);
+      
+    } catch (error) {
+      console.error('Error saving PRD section:', error);
+      throw error;
     }
   };
 
@@ -244,21 +270,12 @@ const PRDTab: React.FC<PRDTabProps> = ({ projectTitle, projectDescription }) => 
         <TabsContent value="sections" className="space-y-4">
           <div className="space-y-4">
             {prd.sections.map((section, index) => (
-              <Card key={index}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{section.name}</CardTitle>
-                    <Badge variant="outline">Section {section.order}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="prose max-w-none">
-                    <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed bg-gray-50 p-4 rounded-lg">
-                      {section.content}
-                    </pre>
-                  </div>
-                </CardContent>
-              </Card>
+              <PRDSectionEditor
+                key={index}
+                section={section}
+                index={index}
+                onSave={handleSectionSave}
+              />
             ))}
           </div>
         </TabsContent>
